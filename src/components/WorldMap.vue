@@ -11,6 +11,16 @@
       </div>
       <button class="reset-btn" @click="resetZoom">リセット</button>
     </div>
+    <!-- 旅行プラン選択タブ -->
+    <div class="plan-tabs">
+      <button
+        v-for="(plan, i) in PLANS" :key="i"
+        class="plan-tab"
+        :class="{ active: selectedPlan === i }"
+        :style="selectedPlan === i ? { borderColor: plan.color, color: plan.color } : {}"
+        @click="selectedPlan = selectedPlan === i ? null : i"
+      >{{ plan.label }}</button>
+    </div>
     <div ref="mapRef" class="svg-wrapper"></div>
     <div v-if="tooltip.visible" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
       {{ tooltip.text }}
@@ -46,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
 import Papa from 'papaparse'
@@ -64,10 +74,61 @@ const totalCount = ref(0)    // 英語名なし含む全件数（テンプレー
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
+const selectedPlan = ref(null) // null | 0 | 1 | 2
 let svgRef = null
+let gRef = null
+let projRef = null
+let pathRef = null
 let zoomBehavior = null
 let resizeObserver = null
 let redrawTimer = null
+
+// ── 旅行プランデータ ──────────────────────────────────────────
+const PLANS = [
+  {
+    label: '① トルコ・ブルガリア',
+    color: '#f5a623',
+    countries: ['Turkey', 'Bulgaria', 'Austria', 'United States of America'],
+    cities: [
+      { name: '東京',         coords: [139.6917,  35.6895] },
+      { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
+      { name: 'カッパドキア',  coords: [ 34.8489,  38.6431] },
+      { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
+      { name: 'ソフィア',      coords: [ 23.3219,  42.6977] },
+      { name: 'ウィーン',      coords: [ 16.3738,  48.2082] },
+      { name: 'ワシントンDC',  coords: [-77.0369,  38.9072] },
+      { name: '大阪',          coords: [135.5022,  34.6937] },
+    ],
+  },
+  {
+    label: '② ラオス・香港・マカオ',
+    color: '#2ecc71',
+    countries: ['Thailand', 'Laos', 'Hong Kong', 'Macao'],
+    cities: [
+      { name: '大阪',          coords: [135.5022,  34.6937] },
+      { name: 'バンコク',      coords: [100.5018,  13.7563] },
+      { name: 'ルアンパバーン', coords: [102.1347,  19.8845] },
+      { name: 'バンコク',      coords: [100.5018,  13.7563] },
+      { name: '香港',          coords: [114.1694,  22.3193] },
+      { name: 'マカオ',        coords: [113.5439,  22.1987] },
+      { name: '香港',          coords: [114.1694,  22.3193] },
+      { name: '小松',          coords: [136.4073,  36.3940] },
+    ],
+  },
+  {
+    label: '③ サモア',
+    color: '#a78bfa',
+    countries: ['New Zealand', 'Samoa'],
+    cities: [
+      { name: '小松',          coords: [136.4073,  36.3940] },
+      { name: '香港',          coords: [114.1694,  22.3193] },
+      { name: 'オークランド',  coords: [174.7633, -36.8485] },
+      { name: 'サモア',        coords: [-171.775, -13.8314] },
+      { name: 'オークランド',  coords: [174.7633, -36.8485] },
+      { name: '東京',          coords: [139.6917,  35.6895] },
+    ],
+  },
+]
 
 const REGION_ORDER = [
   '東アジア', '東南アジア', '南アジア', '中央アジア',
@@ -116,6 +177,29 @@ function isVisited(propName) {
     if (mappedName === propName && visitedSet.has(csvName)) return true
   }
   return false
+}
+
+// 国のベース塗り色（プランまたは渡航済み/未渡航）
+function getCountryFill(propName) {
+  if (!propName) return '#2d4a6a'
+  if (selectedPlan.value !== null) {
+    const plan = PLANS[selectedPlan.value]
+    if (plan.countries.includes(propName)) return plan.color
+  }
+  return isVisited(propName) ? '#e63946' : '#2d4a6a'
+}
+
+// 国のホバー色
+function getCountryHover(propName) {
+  if (!propName) return '#4a7a9b'
+  if (selectedPlan.value !== null) {
+    const plan = PLANS[selectedPlan.value]
+    if (plan.countries.includes(propName)) {
+      // プランカラーを少し明るく
+      return plan.color + 'cc'
+    }
+  }
+  return isVisited(propName) ? '#ff6b6b' : '#4a7a9b'
 }
 
 function getJaName(propName) {
@@ -234,6 +318,8 @@ async function drawMap() {
     .scale(projScale)
     .translate([width / 2, height / 2])
   const path = d3.geoPath().projection(projection)
+  projRef = projection
+  pathRef = path
   const svgArea = width * height
   countries.features.forEach(feature => {
     const b = path.bounds(feature)
@@ -256,6 +342,7 @@ async function drawMap() {
     .style('cursor', 'grab')
 
   svgRef = svg
+  gRef = null // reset before assign
 
   // 海のグラデーション
   const defs = svg.append('defs')
@@ -278,6 +365,7 @@ async function drawMap() {
 
   // ズーム対象のグループ
   const g = svg.append('g').attr('class', 'map-g')
+  gRef = g
 
   g.selectAll('.country')
     .data(countries.features)
@@ -285,10 +373,7 @@ async function drawMap() {
     .append('path')
     .attr('class', 'country')
     .attr('d', path)
-    .attr('fill', d => {
-      const name = d.properties?.name || ''
-      return isVisited(name) ? '#e63946' : '#2d4a6a'
-    })
+    .attr('fill', d => getCountryFill(d.properties?.name || ''))
     .attr('stroke', '#0d1b2a')
     .attr('stroke-width', 0.2)
     .on('mousemove', function (event, d) {
@@ -301,12 +386,11 @@ async function drawMap() {
         y: event.clientY - 28,
         text: `${jaName}${vis ? ' ✓ 渡航済み' : ''}`
       }
-      d3.select(this).attr('fill', vis ? '#ff6b6b' : '#4a7a9b')
+      d3.select(this).attr('fill', getCountryHover(propName))
     })
     .on('mouseleave', function (event, d) {
       tooltip.value.visible = false
-      const name = d.properties?.name || ''
-      d3.select(this).attr('fill', isVisited(name) ? '#e63946' : '#2d4a6a')
+      d3.select(this).attr('fill', getCountryFill(d.properties?.name || ''))
     })
 
   // 国境線
@@ -329,6 +413,72 @@ async function drawMap() {
   svg.call(zoomBehavior)
     .on('dblclick.zoom', null) // ダブルクリックズームを無効化
 }
+
+// プランオーバーレイ（アーク + 都市マーカー）の更新
+function updatePlanOverlay() {
+  if (!gRef || !projRef || !pathRef) return
+
+  // 国の色を更新
+  gRef.selectAll('.country').attr('fill', d => getCountryFill(d.properties?.name || ''))
+
+  // 既存オーバーレイを削除
+  gRef.select('.plan-overlay').remove()
+  if (selectedPlan.value === null) return
+
+  const plan = PLANS[selectedPlan.value]
+  const overlay = gRef.append('g').attr('class', 'plan-overlay')
+
+  // ── アーク描画 ─────────────────────────────────────────────
+  const cities = plan.cities
+  for (let i = 0; i < cities.length - 1; i++) {
+    const from = cities[i].coords
+    const to   = cities[i + 1].coords
+    // 日付変更線をまたぐか判定（経度差 > 180°）
+    const lonDiff = Math.abs(from[0] - to[0])
+    if (lonDiff > 180) {
+      // 日付変更線をまたぐ場合は 2 分割して描画
+      const sign = from[0] > 0 ? 1 : -1
+      const lat  = (from[1] + to[1]) / 2
+      overlay.append('path').datum({ type: 'LineString', coordinates: [from, [sign * 180, lat]] })
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', plan.color).attr('stroke-width', 1.8)
+        .attr('stroke-dasharray', '7,4').attr('opacity', 0.85)
+      overlay.append('path').datum({ type: 'LineString', coordinates: [[-sign * 180, lat], to] })
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', plan.color).attr('stroke-width', 1.8)
+        .attr('stroke-dasharray', '7,4').attr('opacity', 0.85)
+    } else {
+      overlay.append('path')
+        .datum({ type: 'LineString', coordinates: [from, to] })
+        .attr('d', pathRef)
+        .attr('fill', 'none')
+        .attr('stroke', plan.color)
+        .attr('stroke-width', 1.8)
+        .attr('stroke-dasharray', '7,4')
+        .attr('opacity', 0.85)
+    }
+  }
+
+  // ── 都市マーカー・ラベル ───────────────────────────────────
+  const seen = new Set()
+  cities.forEach(city => {
+    const key = city.coords.join(',')
+    if (seen.has(key)) return
+    seen.add(key)
+    const pt = projRef(city.coords)
+    if (!pt) return
+    overlay.append('circle')
+      .attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 4)
+      .attr('fill', plan.color).attr('stroke', '#fff').attr('stroke-width', 1)
+    overlay.append('text')
+      .attr('x', pt[0] + 6).attr('y', pt[1] - 4)
+      .attr('fill', '#fff').attr('font-size', '9px')
+      .style('text-shadow', '0 0 3px #000, 0 0 3px #000')
+      .text(city.name)
+  })
+}
+
+watch(selectedPlan, () => updatePlanOverlay())
 
 onMounted(async () => {
   await loadCSV()
@@ -409,6 +559,28 @@ h1 {
   transition: background 0.2s;
 }
 .reset-btn:hover { background: #4a7a9b; }
+
+/* 旅行プランタブ */
+.plan-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.plan-tab {
+  background: #1a2d40;
+  color: #aaa;
+  border: 1px solid #2d4a6a;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.plan-tab:hover { border-color: #4a7a9b; color: #ccc; }
+.plan-tab.active { background: #0d1b2a; font-weight: 600; }
 
 .svg-wrapper {
   flex-shrink: 0;
