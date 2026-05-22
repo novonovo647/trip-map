@@ -188,26 +188,33 @@ async function drawMap() {
   }
   const numGaps = Math.max(container.children.length - 1, 0)
   const availH = Math.max(container.clientHeight - siblingsH - numGaps * 6 - 12, 80)
-  const aspect = 960 / 487  // Natural Earth の横縦比
+  const aspect = 960 / 487
   const widthConstrainedH = containerW / aspect
-  let width, height, mapW
+  let width = containerW
+  let height, projScale, xMin, xMax, yMin, yMax
+
   if (widthConstrainedH <= availH) {
-    // 縦向き：高さを最大限に利用。地図は画面幅を超えてドラッグで表示
-    width = containerW
+    // 縦向き：高さフィル、地図が横にはみ出す → 横ドラッグで表示
     height = availH
-    mapW = height * aspect  // 実際の地図幅（SVG幅より大きい）
+    const mapW = height * aspect
+    projScale = mapW / 6.3
+    xMin = (width - mapW) / 2
+    xMax = (width + mapW) / 2
+    yMin = 0
+    yMax = height
   } else {
-    // 横向き：幅と高さの両制約内で最大化
+    // 横向き：幅フィル、地図が縦にはみ出す → 縦ドラッグで表示
     height = availH
-    width = Math.floor(Math.min(height * aspect, containerW))
-    height = Math.floor(width / aspect)
-    mapW = width
+    const mapH = width / aspect
+    projScale = width / 6.3
+    xMin = 0
+    xMax = width
+    yMin = (height - mapH) / 2
+    yMax = (height + mapH) / 2
   }
+
   width = Math.floor(Math.max(width, 100))
   height = Math.floor(Math.max(height, 50))
-  const projScale = mapW / 6.3
-  const xMin = (width - mapW) / 2  // 縦向きでは負値
-  const xMax = (width + mapW) / 2  // 縦向きでは width 超え
 
   // winding order の誤りを選択的に修正
   // rewind が bbox を大幅に改善した場合のみ適用（Russia/Fiji 等 antimeridian 国には適用しない）
@@ -301,7 +308,7 @@ async function drawMap() {
   // ズーム設定
   zoomBehavior = d3.zoom()
     .scaleExtent([1, 10])
-    .translateExtent([[xMin, 0], [xMax, height]])
+    .translateExtent([[xMin, yMin], [xMax, yMax]])
     .on('zoom', (event) => {
       g.attr('transform', event.transform)
       svg.style('cursor', event.transform.k > 1 ? 'grabbing' : 'grab')
