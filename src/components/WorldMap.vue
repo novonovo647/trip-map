@@ -2,7 +2,7 @@
   <div class="map-container">
     <h1>🌍 海外渡航マップ</h1>
     <div class="stats">
-      渡航済み: <strong>{{ totalCount }}</strong> / <strong>{{ totalFeatures }}</strong> か国・地域
+      渡航済み: <strong>{{ totalCount }}</strong> / <strong class="total-features">{{ totalFeatures }}</strong> か国・地域
     </div>
     <div class="controls">
       <div class="legend">
@@ -376,6 +376,10 @@ h1 {
 .stats strong {
   color: #e63946;
   font-size: 1.3rem;
+}
+
+.stats strong.total-features {
+  color: #4a7a9b;
 }
 
 .controls {
