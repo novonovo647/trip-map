@@ -10,24 +10,28 @@
       <span class="legend-item visited" @click="listMode = 'visited'">&#9632; 渡航済み</span>
       <span class="legend-item unvisited" @click="listMode = 'unvisited'">&#9632; 未渡航</span>
       <button class="reset-btn" @click="resetZoom">リセット</button>
-      <span class="toolbar-divider"></span>
-      <!-- 旅行セット選択 -->
-      <button
-        v-for="(s, i) in PLAN_SETS" :key="i"
-        class="set-tab"
-        :class="{ active: selectedSet === i }"
-        @click="selectedSet = selectedSet === i ? null : i"
-      >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
     </div>
-    <!-- プラン選択（セット選択時のみ） -->
-    <div v-if="selectedSet !== null" class="plan-tabs">
-      <button
-        v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
-        class="plan-tab"
-        :class="{ active: selectedPlan === j }"
-        :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
-        @click="selectedPlan = selectedPlan === j ? null : j"
-      >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+    <!-- 旅行プランナビ（高さ固定・横スクロール対応） -->
+    <div class="plan-nav">
+      <div class="plan-nav-inner">
+        <span class="plan-nav-label">プラン</span>
+        <button
+          v-for="(s, i) in PLAN_SETS" :key="i"
+          class="set-tab"
+          :class="{ active: selectedSet === i }"
+          @click="selectedSet = selectedSet === i ? null : i"
+        >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
+        <template v-if="selectedSet !== null">
+          <span class="plan-nav-arrow">›</span>
+          <button
+            v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
+            class="plan-tab"
+            :class="{ active: selectedPlan === j }"
+            :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
+            @click="selectedPlan = selectedPlan === j ? null : j"
+          >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+        </template>
+      </div>
     </div>
     <div ref="mapRef" class="svg-wrapper"></div>
     <div v-if="tooltip.visible" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
@@ -625,13 +629,6 @@ h1 {
 .legend-item.unvisited { color: #4a7a9b; cursor: pointer; font-size: 0.85rem; }
 .legend-item:hover { text-decoration: underline; }
 
-.toolbar-divider {
-  width: 1px;
-  height: 16px;
-  background: #2d4a6a;
-  margin: 0 2px;
-}
-
 .reset-btn {
   background: #2d4a6a;
   color: #eee;
@@ -644,12 +641,41 @@ h1 {
 }
 .reset-btn:hover { background: #4a7a9b; }
 
-/* 旅行セットタブ */
-.set-tabs {
-  display: flex;
+/* 旅行プランナビ */
+.plan-nav {
+  width: 100%;
+  height: 30px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.plan-nav::-webkit-scrollbar { display: none; }
+
+.plan-nav-inner {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 100%;
+  height: 100%;
   justify-content: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.plan-nav-label {
+  font-size: 0.72rem;
+  color: #4a7a9b;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.plan-nav-arrow {
+  color: #4a7a9b;
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .set-tab {
@@ -668,14 +694,6 @@ h1 {
 }
 .set-tab:hover { background: #2d4a6a; color: #ddd; }
 .set-tab.active { background: #2d4a6a; color: #e0e0e0; border-color: #7ab3d4; font-weight: 600; }
-
-/* 旅行プランタブ */
-.plan-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
 
 .plan-tab {
   background: #1a2d40;
