@@ -55,7 +55,7 @@ import countryRegions from '../assets/country_regions.json'
 const mapRef = ref(null)
 let visitedSet = new Set()   // Vue reactivity 不要：D3コールバック内で直接参照
 let jaMapData = {}           // Vue reactivity 不要
-let allFeatureNames = []     // drawMap() 後に全フィーチャー名を格納
+const allFeatureNames = ref([])  // drawMap() 後に全フィーチャー名を格納
 const totalCount = ref(0)    // 英語名なし含む全件数（テンプレートで表示）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
@@ -71,9 +71,9 @@ const REGION_ORDER = [
 ]
 
 const groupedList = computed(() => {
-  if (!listMode.value || allFeatureNames.length === 0) return {}
+  if (!listMode.value || allFeatureNames.value.length === 0) return {}
   const result = {}
-  for (const name of allFeatureNames) {
+  for (const name of allFeatureNames.value) {
     if (!name) continue
     const visited = isVisited(name)
     if (listMode.value === 'visited' && !visited) continue
@@ -176,7 +176,7 @@ async function drawMap() {
   }
 
   // 全フィーチャー名を保存（国一覧モーダル用）
-  allFeatureNames = countries.features.map(f => f.properties?.name).filter(Boolean)
+  allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
 
   const wrapper = mapRef.value
   const container = wrapper.parentElement
