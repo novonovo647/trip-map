@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
 import Papa from 'papaparse'
@@ -61,6 +61,8 @@ const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
 let svgRef = null
 let zoomBehavior = null
+let resizeObserver = null
+let redrawTimer = null
 
 const REGION_ORDER = [
   '東アジア', '東南アジア', '南アジア', '中央アジア',
@@ -176,13 +178,41 @@ async function drawMap() {
   // 全フィーチャー名を保存（国一覧モーダル用）
   allFeatureNames = countries.features.map(f => f.properties?.name).filter(Boolean)
 
-  const width = Math.min(window.innerWidth - 40, 960)
-  const height = width * 0.5
+  const wrapper = mapRef.value
+  const container = wrapper.parentElement
+  const containerW = wrapper.clientWidth || (container.clientWidth - 24)
+  // 利用可能な高さ（ヘッダー要素の高さを実測して差し引く）
+  let siblingsH = 0
+  for (const child of container.children) {
+    if (child !== wrapper) siblingsH += child.offsetHeight
+  }
+  const numGaps = Math.max(container.children.length - 1, 0)
+  const availH = Math.max(container.clientHeight - siblingsH - numGaps * 6 - 12, 80)
+  const aspect = 960 / 487  // Natural Earth の横縦比
+  const widthConstrainedH = containerW / aspect
+  let width, height, mapW
+  if (widthConstrainedH <= availH) {
+    // 縦向き：高さを最大限に利用。地図は画面幅を超えてドラッグで表示
+    width = containerW
+    height = availH
+    mapW = height * aspect  // 実際の地図幅（SVG幅より大きい）
+  } else {
+    // 横向き：幅と高さの両制約内で最大化
+    height = availH
+    width = Math.floor(Math.min(height * aspect, containerW))
+    height = Math.floor(width / aspect)
+    mapW = width
+  }
+  width = Math.floor(Math.max(width, 100))
+  height = Math.floor(Math.max(height, 50))
+  const projScale = mapW / 6.3
+  const xMin = (width - mapW) / 2  // 縦向きでは負値
+  const xMax = (width + mapW) / 2  // 縦向きでは width 超え
 
   // winding order の誤りを選択的に修正
   // rewind が bbox を大幅に改善した場合のみ適用（Russia/Fiji 等 antimeridian 国には適用しない）
   const projection = d3.geoNaturalEarth1()
-    .scale(width / 6.3)
+    .scale(projScale)
     .translate([width / 2, height / 2])
   const path = d3.geoPath().projection(projection)
   const svgArea = width * height
@@ -271,7 +301,7 @@ async function drawMap() {
   // ズーム設定
   zoomBehavior = d3.zoom()
     .scaleExtent([1, 10])
-    .translateExtent([[0, 0], [width, height]])
+    .translateExtent([[xMin, 0], [xMax, height]])
     .on('zoom', (event) => {
       g.attr('transform', event.transform)
       svg.style('cursor', event.transform.k > 1 ? 'grabbing' : 'grab')
@@ -284,22 +314,38 @@ async function drawMap() {
 onMounted(async () => {
   await loadCSV()
   await drawMap()
+
+  resizeObserver = new ResizeObserver(() => {
+    clearTimeout(redrawTimer)
+    redrawTimer = setTimeout(() => {
+      d3.select(mapRef.value).selectAll('*').remove()
+      drawMap()
+    }, 150)
+  })
+  resizeObserver.observe(mapRef.value)
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  clearTimeout(redrawTimer)
 })
 </script>
 
 <style scoped>
 .map-container {
   width: 100%;
-  max-width: 960px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 h1 {
-  font-size: 1.8rem;
-  margin-top: 10px;
+  font-size: clamp(1.1rem, 4vw, 1.8rem);
   color: #e0e0e0;
 }
 
@@ -342,8 +388,10 @@ h1 {
 .reset-btn:hover { background: #4a7a9b; }
 
 .svg-wrapper {
+  flex-shrink: 0;
   width: 100%;
   position: relative;
+  overflow: hidden;
   user-select: none;
 }
 
@@ -360,9 +408,9 @@ h1 {
 }
 
 .hint {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: #555;
-  margin-top: -4px;
+  margin-top: -2px;
 }
 
 /* 国一覧モーダル */
