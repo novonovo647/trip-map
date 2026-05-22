@@ -634,8 +634,9 @@ onUnmounted(() => {
 .top-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 100%;
+  position: relative;
 }
 
 .title-reset {
@@ -648,7 +649,7 @@ onUnmounted(() => {
 }
 .title-reset:hover { color: #fff; }
 
-.burger-wrap { position: relative; }
+.burger-wrap { position: absolute; right: 0; }
 
 .burger-btn {
   background: none;
