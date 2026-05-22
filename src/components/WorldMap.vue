@@ -30,7 +30,7 @@
               <div v-if="groupedList[region]" class="region-section">
                 <h3>{{ region }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
                 <ul>
-                  <li v-for="c in groupedList[region]" :key="c.en">{{ c.ja }}</li>
+                  <li v-for="c in groupedList[region]" :key="c.en" :class="{ 'strikethrough-item': c.strikethrough }">{{ c.ja }}</li>
                 </ul>
               </div>
             </template>
@@ -78,15 +78,21 @@ const groupedList = computed(() => {
     const visited = isVisited(name)
     if (listMode.value === 'visited' && !visited) continue
     if (listMode.value === 'unvisited' && visited) continue
+    if (listMode.value === 'unvisited' && name === 'Japan') continue
     const region = countryRegions[name] || 'その他'
     if (!result[region]) result[region] = []
-    result[region].push({ en: name, ja: getJaName(name) })
+    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name) })
   }
   for (const arr of Object.values(result)) {
     arr.sort((a, b) => a.ja.localeCompare(b.ja, 'ja'))
   }
   return result
 })
+
+// 渡航困難国（取り消し線表示）
+const STRIKETHROUGH_NAMES = new Set([
+  'Iran', 'Iraq', 'North Korea', 'Syria', 'Sudan', 'Libya', 'Somalia', 'Yemen', 'Cuba',
+])
 
 // CSV英語名 → 10mデータのproperties.name への変換（差異のある分のみ）
 const NAME_MAP = {
@@ -505,5 +511,10 @@ h1 {
   color: #ccc;
   padding: 2px 0;
   line-height: 1.4;
+}
+
+.strikethrough-item {
+  text-decoration: line-through;
+  opacity: 0.45;
 }
 </style>
