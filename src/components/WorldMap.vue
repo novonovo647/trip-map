@@ -1,6 +1,6 @@
 <template>
   <div class="map-container">
-    <h1>🌍 渡航済み国マップ</h1>
+    <h1>🌍 海外渡航マップ</h1>
     <div class="stats">
       渡航済み: <strong>{{ totalCount }}</strong> / <strong>{{ totalFeatures }}</strong> か国・地域
     </div>
