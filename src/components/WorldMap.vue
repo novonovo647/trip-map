@@ -11,15 +11,24 @@
       </div>
       <button class="reset-btn" @click="resetZoom">リセット</button>
     </div>
-    <!-- 旅行プラン選択タブ -->
-    <div class="plan-tabs">
+    <!-- 旅行セット選択 -->
+    <div class="set-tabs">
       <button
-        v-for="(plan, i) in PLANS" :key="i"
+        v-for="(s, i) in PLAN_SETS" :key="i"
+        class="set-tab"
+        :class="{ active: selectedSet === i }"
+        @click="selectedSet = selectedSet === i ? null : i"
+      >{{ s.setName }}</button>
+    </div>
+    <!-- プラン選択（セット選択時のみ） -->
+    <div v-if="selectedSet !== null" class="plan-tabs">
+      <button
+        v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
         class="plan-tab"
-        :class="{ active: selectedPlan === i }"
-        :style="selectedPlan === i ? { borderColor: plan.color, color: plan.color } : {}"
-        @click="selectedPlan = selectedPlan === i ? null : i"
-      >{{ plan.label }}</button>
+        :class="{ active: selectedPlan === j }"
+        :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
+        @click="selectedPlan = selectedPlan === j ? null : j"
+      >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
     </div>
     <div ref="mapRef" class="svg-wrapper"></div>
     <div v-if="tooltip.visible" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
@@ -74,7 +83,8 @@ const totalCount = ref(0)    // 英語名なし含む全件数（テンプレー
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
-const selectedPlan = ref(null) // null | 0 | 1 | 2
+const selectedSet  = ref(null) // null | セットindex
+const selectedPlan = ref(null) // null | プランindex（セット内）
 let svgRef = null
 let gRef = null
 let projRef = null
@@ -84,51 +94,98 @@ let resizeObserver = null
 let redrawTimer = null
 
 // ── 旅行プランデータ ──────────────────────────────────────────
-const PLANS = [
+const PLAN_SETS = [
   {
-    label: '① トルコ・ブルガリア',
-    color: '#f5a623',
-    countries: ['Turkey', 'Bulgaria', 'Austria', 'United States of America'],
-    cities: [
-      { name: '東京',         coords: [139.6917,  35.6895] },
-      { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
-      { name: 'カッパドキア',  coords: [ 34.8489,  38.6431] },
-      { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
-      { name: 'ソフィア',      coords: [ 23.3219,  42.6977] },
-      { name: 'ウィーン',      coords: [ 16.3738,  48.2082] },
-      { name: 'ワシントンDC',  coords: [-77.0369,  38.9072] },
-      { name: '大阪',          coords: [135.5022,  34.6937] },
+    setName: 'トルコ・ブルガリア',
+    plans: [
+      {
+        label: '① トルコ・ブルガリア',
+        nights: 11,
+        color: '#f5a623',
+        countries: ['Turkey', 'Bulgaria', 'Austria', 'United States of America'],
+        cities: [
+          { name: '東京',          coords: [139.6917,  35.6895] },
+          { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
+          { name: 'カッパドキア',   coords: [ 34.8489,  38.6431] },
+          { name: 'イスタンブール', coords: [ 28.9784,  41.0082] },
+          { name: 'ソフィア',       coords: [ 23.3219,  42.6977] },
+          { name: 'ウィーン',       coords: [ 16.3738,  48.2082] },
+          { name: 'ワシントンDC',   coords: [-77.0369,  38.9072] },
+          { name: '大阪',           coords: [135.5022,  34.6937] },
+        ],
+      },
+      {
+        label: '② ラオス・香港・マカオ',
+        nights: 9,
+        color: '#2ecc71',
+        countries: ['Thailand', 'Laos', 'Hong Kong', 'Macao'],
+        cities: [
+          { name: '大阪',           coords: [135.5022,  34.6937] },
+          { name: 'バンコク',       coords: [100.5018,  13.7563] },
+          { name: 'ルアンパバーン',  coords: [102.1347,  19.8845] },
+          { name: 'バンコク',       coords: [100.5018,  13.7563] },
+          { name: '香港',           coords: [114.1694,  22.3193] },
+          { name: 'マカオ',         coords: [113.5439,  22.1987] },
+          { name: '香港',           coords: [114.1694,  22.3193] },
+          { name: '小松',           coords: [136.4073,  36.3940] },
+        ],
+      },
+      {
+        label: '③ ニュージーランド・サモア',
+        nights: 6,
+        color: '#a78bfa',
+        countries: ['New Zealand', 'Samoa'],
+        cities: [
+          { name: '小松',          coords: [136.4073,  36.3940] },
+          { name: '香港',          coords: [114.1694,  22.3193] },
+          { name: 'オークランド',  coords: [174.7633, -36.8485] },
+          { name: 'サモア',        coords: [-171.775, -13.8314] },
+          { name: 'オークランド',  coords: [174.7633, -36.8485] },
+          { name: '東京',          coords: [139.6917,  35.6895] },
+        ],
+      },
     ],
   },
   {
-    label: '② ラオス・香港・マカオ',
-    color: '#2ecc71',
-    countries: ['Thailand', 'Laos', 'Hong Kong', 'Macao'],
-    cities: [
-      { name: '大阪',          coords: [135.5022,  34.6937] },
-      { name: 'バンコク',      coords: [100.5018,  13.7563] },
-      { name: 'ルアンパバーン', coords: [102.1347,  19.8845] },
-      { name: 'バンコク',      coords: [100.5018,  13.7563] },
-      { name: '香港',          coords: [114.1694,  22.3193] },
-      { name: 'マカオ',        coords: [113.5439,  22.1987] },
-      { name: '香港',          coords: [114.1694,  22.3193] },
-      { name: '小松',          coords: [136.4073,  36.3940] },
-    ],
-  },
-  {
-    label: '③ サモア',
-    color: '#a78bfa',
-    countries: ['New Zealand', 'Samoa'],
-    cities: [
-      { name: '小松',          coords: [136.4073,  36.3940] },
-      { name: '香港',          coords: [114.1694,  22.3193] },
-      { name: 'オークランド',  coords: [174.7633, -36.8485] },
-      { name: 'サモア',        coords: [-171.775, -13.8314] },
-      { name: 'オークランド',  coords: [174.7633, -36.8485] },
-      { name: '東京',          coords: [139.6917,  35.6895] },
+    setName: 'モーリシャス・ケープタウン・ナミビア',
+    plans: [
+      {
+        label: '① モーリシャス・ケープタウン・ナミビア',
+        nights: 14,
+        color: '#f5a623',
+        countries: ['India', 'Mauritius', 'South Africa', 'Namibia', 'Ethiopia', 'United States of America'],
+        cities: [
+          { name: '東京',           coords: [139.6917,  35.6895] },
+          { name: 'ムンバイ',       coords: [ 72.8777,  19.0760] },
+          { name: 'モーリシャス',   coords: [ 57.5522, -20.1609] },
+          { name: 'ケープタウン',   coords: [ 18.4241, -33.9249] },
+          { name: 'ヨハネスブルク', coords: [ 28.0473, -26.2041] },
+          { name: 'ナミビア(砂漠)', coords: [ 15.4,    -24.7   ] },
+          { name: 'アディスアベバ', coords: [ 38.7369,   9.0320] },
+          { name: 'サンフランシスコ', coords: [-122.4194, 37.7749] },
+          { name: '大阪',           coords: [135.5022,  34.6937] },
+        ],
+      },
+      {
+        label: '② 台湾・沖縄',
+        nights: null,
+        color: '#2ecc71',
+        countries: ['Taiwan'],
+        cities: [
+          { name: '大阪', coords: [135.5022,  34.6937] },
+          { name: '台北', coords: [121.5654,  25.0330] },
+          { name: '那覇', coords: [127.6792,  26.2124] },
+          { name: '東京', coords: [139.6917,  35.6895] },
+        ],
+      },
     ],
   },
 ]
+
+const currentPlan = computed(() => {
+  if (selectedSet.value === null || selectedPlan.value === null) return null
+  return PLAN_SETS[selectedSet.value]?.plans[selectedPlan.value] ?? null
+})
 
 const REGION_ORDER = [
   '東アジア', '東南アジア', '南アジア', '中央アジア',
@@ -182,23 +239,14 @@ function isVisited(propName) {
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
   if (!propName) return '#2d4a6a'
-  if (selectedPlan.value !== null) {
-    const plan = PLANS[selectedPlan.value]
-    if (plan.countries.includes(propName)) return plan.color
-  }
+  if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color
   return isVisited(propName) ? '#e63946' : '#2d4a6a'
 }
 
 // 国のホバー色
 function getCountryHover(propName) {
   if (!propName) return '#4a7a9b'
-  if (selectedPlan.value !== null) {
-    const plan = PLANS[selectedPlan.value]
-    if (plan.countries.includes(propName)) {
-      // プランカラーを少し明るく
-      return plan.color + 'cc'
-    }
-  }
+  if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color + 'cc'
   return isVisited(propName) ? '#ff6b6b' : '#4a7a9b'
 }
 
@@ -423,9 +471,9 @@ function updatePlanOverlay() {
 
   // 既存オーバーレイを削除
   gRef.select('.plan-overlay').remove()
-  if (selectedPlan.value === null) return
+  if (!currentPlan.value) return
 
-  const plan = PLANS[selectedPlan.value]
+  const plan = currentPlan.value
   const overlay = gRef.append('g').attr('class', 'plan-overlay')
 
   // ── アーク描画 ─────────────────────────────────────────────
@@ -441,20 +489,20 @@ function updatePlanOverlay() {
       const lat  = (from[1] + to[1]) / 2
       overlay.append('path').datum({ type: 'LineString', coordinates: [from, [sign * 180, lat]] })
         .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', plan.color).attr('stroke-width', 1.8)
-        .attr('stroke-dasharray', '7,4').attr('opacity', 0.85)
+        .attr('stroke', plan.color).attr('stroke-width', 1.0)
+        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
       overlay.append('path').datum({ type: 'LineString', coordinates: [[-sign * 180, lat], to] })
         .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', plan.color).attr('stroke-width', 1.8)
-        .attr('stroke-dasharray', '7,4').attr('opacity', 0.85)
+        .attr('stroke', plan.color).attr('stroke-width', 1.0)
+        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
     } else {
       overlay.append('path')
         .datum({ type: 'LineString', coordinates: [from, to] })
         .attr('d', pathRef)
         .attr('fill', 'none')
         .attr('stroke', plan.color)
-        .attr('stroke-width', 1.8)
-        .attr('stroke-dasharray', '7,4')
+        .attr('stroke-width', 1.0)
+        .attr('stroke-dasharray', '6,3')
         .attr('opacity', 0.85)
     }
   }
@@ -478,7 +526,8 @@ function updatePlanOverlay() {
   })
 }
 
-watch(selectedPlan, () => updatePlanOverlay())
+watch(currentPlan, () => updatePlanOverlay())
+watch(selectedSet, () => { selectedPlan.value = null })
 
 onMounted(async () => {
   await loadCSV()
@@ -559,6 +608,28 @@ h1 {
   transition: background 0.2s;
 }
 .reset-btn:hover { background: #4a7a9b; }
+
+/* 旅行セットタブ */
+.set-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.set-tab {
+  background: #1a2d40;
+  color: #bbb;
+  border: 1px solid #4a7a9b;
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.set-tab:hover { background: #2d4a6a; color: #ddd; }
+.set-tab.active { background: #2d4a6a; color: #e0e0e0; border-color: #7ab3d4; font-weight: 600; }
 
 /* 旅行プランタブ */
 .plan-tabs {
