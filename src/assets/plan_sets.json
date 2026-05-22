@@ -1,0 +1,87 @@
+[
+  {
+    "setName": "トルコ・ブルガリア",
+    "plans": [
+      {
+        "label": "① トルコ・ブルガリア",
+        "nights": 11,
+        "color": "#f5a623",
+        "countries": ["Turkey", "Bulgaria", "Austria", "United States of America"],
+        "cities": [
+          { "name": "東京",           "coords": [139.6917,  35.6895] },
+          { "name": "イスタンブール", "coords": [ 28.9784,  41.0082] },
+          { "name": "カッパドキア",   "coords": [ 34.8489,  38.6431] },
+          { "name": "イスタンブール", "coords": [ 28.9784,  41.0082] },
+          { "name": "ソフィア",       "coords": [ 23.3219,  42.6977] },
+          { "name": "ウィーン",       "coords": [ 16.3738,  48.2082] },
+          { "name": "ワシントンDC",   "coords": [-77.0369,  38.9072] },
+          { "name": "大阪",           "coords": [135.5022,  34.6937] }
+        ]
+      },
+      {
+        "label": "② ラオス・香港・マカオ",
+        "nights": 9,
+        "color": "#2ecc71",
+        "countries": ["Thailand", "Laos", "Hong Kong", "Macao"],
+        "cities": [
+          { "name": "大阪",          "coords": [135.5022,  34.6937] },
+          { "name": "バンコク",      "coords": [100.5018,  13.7563] },
+          { "name": "ルアンパバーン", "coords": [102.1347,  19.8845] },
+          { "name": "バンコク",      "coords": [100.5018,  13.7563] },
+          { "name": "香港",          "coords": [114.1694,  22.3193] },
+          { "name": "マカオ",        "coords": [113.5439,  22.1987] },
+          { "name": "香港",          "coords": [114.1694,  22.3193] },
+          { "name": "小松",          "coords": [136.4073,  36.3940] }
+        ]
+      },
+      {
+        "label": "③ ニュージーランド・サモア",
+        "nights": 6,
+        "color": "#a78bfa",
+        "countries": ["New Zealand", "Samoa"],
+        "cities": [
+          { "name": "小松",         "coords": [136.4073,  36.3940] },
+          { "name": "香港",         "coords": [114.1694,  22.3193] },
+          { "name": "オークランド", "coords": [174.7633, -36.8485] },
+          { "name": "サモア",       "coords": [-171.775, -13.8314] },
+          { "name": "オークランド", "coords": [174.7633, -36.8485] },
+          { "name": "東京",         "coords": [139.6917,  35.6895] }
+        ]
+      }
+    ]
+  },
+  {
+    "setName": "モーリシャス・ケープタウン・ナミビア",
+    "plans": [
+      {
+        "label": "① モーリシャス・ケープタウン・ナミビア",
+        "nights": 14,
+        "color": "#f5a623",
+        "countries": ["India", "Mauritius", "South Africa", "Namibia", "Ethiopia", "United States of America"],
+        "cities": [
+          { "name": "東京",            "coords": [139.6917,  35.6895] },
+          { "name": "ムンバイ",        "coords": [ 72.8777,  19.0760] },
+          { "name": "モーリシャス",    "coords": [ 57.5522, -20.1609] },
+          { "name": "ケープタウン",    "coords": [ 18.4241, -33.9249] },
+          { "name": "ヨハネスブルク",  "coords": [ 28.0473, -26.2041] },
+          { "name": "ナミビア(砂漠)",  "coords": [ 15.4,    -24.7   ] },
+          { "name": "アディスアベバ",  "coords": [ 38.7369,   9.0320] },
+          { "name": "サンフランシスコ", "coords": [-122.4194, 37.7749] },
+          { "name": "大阪",            "coords": [135.5022,  34.6937] }
+        ]
+      },
+      {
+        "label": "② 台湾・沖縄",
+        "nights": null,
+        "color": "#2ecc71",
+        "countries": ["Taiwan"],
+        "cities": [
+          { "name": "大阪", "coords": [135.5022,  34.6937] },
+          { "name": "台北", "coords": [121.5654,  25.0330] },
+          { "name": "那覇", "coords": [127.6792,  26.2124] },
+          { "name": "東京", "coords": [139.6917,  35.6895] }
+        ]
+      }
+    ]
+  }
+]
