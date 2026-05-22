@@ -1,48 +1,75 @@
 <template>
   <div class="map-container">
-    <div class="header-row">
-      <h1>🌍 海外渡航マップ</h1>
-      <div class="stats">
-        渡航済み: <strong>{{ totalCount }}</strong> / <strong class="total-features">{{ totalFeatures }}</strong> か国・地域
+    <!-- トップバー: タイトル（リセット） + バーガーメニュー -->
+    <div class="top-bar">
+      <h1 class="title-reset" @click="resetZoom" title="クリックでリセット">🌍 海外渡航マップ</h1>
+      <div class="burger-wrap">
+        <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
+        <div v-if="burgerOpen" class="burger-menu">
+          <p class="burger-hint">スクロール: 拡大・縮小　ドラッグ: 移動</p>
+          <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">地図データ: Natural Earth</a>
+          <a href="https://ja.wikipedia.org/wiki/ISO_3166-1" target="_blank" rel="noopener">国・地域コード: ISO 3166-1</a>
+        </div>
       </div>
     </div>
-    <div class="toolbar">
-      <span class="legend-item visited" @click="listMode = 'visited'">&#9632; 渡航済み</span>
-      <span class="legend-item unvisited" @click="listMode = 'unvisited'">&#9632; 未渡航</span>
-      <button class="reset-btn" @click="resetZoom">リセット</button>
+    <!-- 統計: 渡航済み / 未渡航（クリックで一覧） -->
+    <div class="stats">
+      <span class="stat-visited" @click="listMode = 'visited'">渡航済み: <strong>{{ totalCount }}</strong></span>
+      <span class="stat-sep">&nbsp;/&nbsp;未渡航:&nbsp;</span>
+      <span class="stat-unvisited" @click="listMode = 'unvisited'"><strong class="total-features">{{ totalFeatures }}</strong></span>
+      <span class="stat-unit">&nbsp;か国・地域</span>
     </div>
-    <!-- 旅行プランナビ（高さ固定・横スクロール対応） -->
-    <div class="plan-nav">
-      <div class="plan-nav-inner">
-        <span class="plan-nav-label">プラン</span>
-        <button
-          v-for="(s, i) in PLAN_SETS" :key="i"
-          class="set-tab"
-          :class="{ active: selectedSet === i }"
-          @click="selectedSet = selectedSet === i ? null : i"
-        >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
-        <template v-if="selectedSet !== null">
-          <span class="plan-nav-arrow">›</span>
+    <!-- プランDDリスト + コース表示 -->
+    <div class="plan-bar">
+      <div class="plan-select-row">
+        <span class="plan-bar-label">コース:</span>
+        <div class="plan-selector-wrap">
+          <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
+            <span>{{ currentPlan ? currentPlan.label + (currentPlan.nights ? `（${currentPlan.nights}泊）` : '') : '選択' }}</span>
+            <span class="selector-arrow">▾</span>
+          </button>
+          <div v-if="dropdownOpen" class="plan-dropdown">
+            <div class="dropdown-item item-clear" @click="clearPlan">— 選択しない —</div>
+            <template v-for="(s, si) in PLAN_SETS" :key="si">
+              <div class="dropdown-group">{{ s.setName }}</div>
+              <div
+                v-for="(plan, pi) in s.plans" :key="pi"
+                class="dropdown-item"
+                :class="{ active: selectedSet === si && selectedPlan === pi }"
+                :style="selectedSet === si && selectedPlan === pi ? { color: plan.color } : {}"
+                @click="selectPlanFromDD(si, pi)"
+              >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</div>
+            </template>
+          </div>
+        </div>
+        <button v-if="currentPlan" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
+      </div>
+      <!-- プランナビボタン（横スクロール対応） -->
+      <div class="plan-nav">
+        <div class="plan-nav-inner">
           <button
-            v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
-            class="plan-tab"
-            :class="{ active: selectedPlan === j }"
-            :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
-            @click="selectedPlan = selectedPlan === j ? null : j"
-          >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
-        </template>
+            v-for="(s, i) in PLAN_SETS" :key="i"
+            class="set-tab"
+            :class="{ active: selectedSet === i }"
+            @click="selectSet(i)"
+          >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
+          <template v-if="selectedSet !== null">
+            <span class="plan-nav-arrow">›</span>
+            <button
+              v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
+              class="plan-tab"
+              :class="{ active: selectedPlan === j }"
+              :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
+              @click="selectedPlan = selectedPlan === j ? null : j"
+            >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+          </template>
+        </div>
       </div>
     </div>
     <div ref="mapRef" class="svg-wrapper"></div>
     <div v-if="tooltip.visible" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
       {{ tooltip.text }}
     </div>
-    <p class="hint">スクロールで拡大・縮小 / ドラッグで移動</p>
-    <p class="source-note">
-      地図データ: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>
-      &nbsp;|&nbsp; 国・地域コード: <a href="https://ja.wikipedia.org/wiki/ISO_3166-1" target="_blank" rel="noopener">ISO 3166-1</a>
-    </p>
-
     <!-- 国一覧モーダル -->
     <Teleport to="body">
       <div v-if="listMode" class="list-overlay" @click.self="listMode = null">
@@ -87,6 +114,11 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- ドロップダウン外クリックで閉じる -->
+    <Teleport to="body">
+      <div v-if="dropdownOpen || burgerOpen" class="click-outside" @click="dropdownOpen = false; burgerOpen = false"></div>
+    </Teleport>
   </div>
 </template>
 
@@ -112,6 +144,8 @@ const listMode = ref(null)   // null | 'visited' | 'unvisited'
 const selectedSet   = ref(null) // null | セットindex
 const selectedPlan  = ref(null) // null | プランindex（セット内）
 const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
+const burgerOpen    = ref(false)
+const dropdownOpen  = ref(false)
 let svgRef = null
 let gRef = null
 let projRef = null
@@ -553,8 +587,24 @@ function updatePlanOverlay() {
   })
 }
 
+function selectSet(i) {
+  selectedSet.value = selectedSet.value === i ? null : i
+  selectedPlan.value = null
+}
+
+function selectPlanFromDD(si, pi) {
+  selectedSet.value = si
+  selectedPlan.value = pi
+  dropdownOpen.value = false
+}
+
+function clearPlan() {
+  selectedSet.value = null
+  selectedPlan.value = null
+  dropdownOpen.value = false
+}
+
 watch(currentPlan, () => updatePlanOverlay())
-watch(selectedSet, () => { selectedPlan.value = null })
 
 onMounted(async () => {
   await loadCSV()
@@ -589,125 +639,245 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.header-row {
+/* トップバー */
+.top-bar {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-h1 {
+.title-reset {
   font-size: clamp(1rem, 3.5vw, 1.5rem);
   color: #e0e0e0;
   margin: 0;
-}
-
-.stats {
-  font-size: 0.95rem;
-  color: #aaa;
-}
-
-.stats strong {
-  color: #e63946;
-  font-size: 1.1rem;
-}
-
-.stats strong.total-features {
-  color: #4a7a9b;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.legend-item.visited { color: #e63946; cursor: pointer; font-size: 0.85rem; }
-.legend-item.unvisited { color: #4a7a9b; cursor: pointer; font-size: 0.85rem; }
-.legend-item:hover { text-decoration: underline; }
-
-.reset-btn {
-  background: #2d4a6a;
-  color: #eee;
-  border: 1px solid #4a7a9b;
-  border-radius: 6px;
-  padding: 4px 14px;
-  font-size: 0.85rem;
   cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+.title-reset:hover { color: #fff; }
+
+.burger-wrap { position: relative; }
+
+.burger-btn {
+  background: none;
+  border: none;
+  color: #7ab3d4;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
   transition: background 0.2s;
 }
-.reset-btn:hover { background: #4a7a9b; }
+.burger-btn:hover { background: #1a2d40; }
 
-/* 旅行プランナビ */
+.burger-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #1a2d40;
+  border: 1px solid #2d4a6a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 220px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.burger-hint {
+  font-size: 0.72rem;
+  color: #556;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2d4a6a;
+}
+.burger-menu a {
+  font-size: 0.8rem;
+  color: #7ab3d4;
+  text-decoration: none;
+}
+.burger-menu a:hover { text-decoration: underline; }
+
+/* 統計 */
+.stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: #aaa;
+  gap: 1px;
+}
+.stat-visited { color: #e63946; cursor: pointer; }
+.stat-visited:hover { text-decoration: underline; }
+.stat-visited strong { font-size: 1.1rem; }
+.stat-unvisited { color: #4a7a9b; cursor: pointer; }
+.stat-unvisited:hover { text-decoration: underline; }
+.total-features { font-size: 1.1rem; color: #4a7a9b; }
+.stat-sep { color: #556; }
+.stat-unit { color: #666; }
+
+/* プランバー */
+.plan-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.plan-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.plan-bar-label {
+  font-size: 0.8rem;
+  color: #4a7a9b;
+  white-space: nowrap;
+}
+.plan-selector-wrap { position: relative; }
+.plan-selector {
+  background: #1a2d40;
+  color: #ccc;
+  border: 1px solid #2d4a6a;
+  border-radius: 6px;
+  padding: 4px 10px 4px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.2s;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plan-selector:hover { border-color: #4a7a9b; color: #eee; }
+.selector-arrow { font-size: 0.7rem; color: #4a7a9b; flex-shrink: 0; }
+
+.plan-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a2d40;
+  border: 1px solid #2d4a6a;
+  border-radius: 8px;
+  min-width: 260px;
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 150;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  padding: 4px 0;
+}
+.dropdown-group {
+  font-size: 0.68rem;
+  color: #4a7a9b;
+  padding: 8px 14px 3px;
+  letter-spacing: 0.05em;
+  border-top: 1px solid #2d4a6a;
+}
+.dropdown-item {
+  font-size: 0.82rem;
+  color: #bbb;
+  padding: 7px 14px 7px 22px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.dropdown-item:hover { background: #2d4a6a; color: #eee; }
+.dropdown-item.active { font-weight: 600; }
+.item-clear { font-size: 0.75rem; color: #556; padding-left: 14px; font-style: italic; }
+
+.detail-btn {
+  flex-shrink: 0;
+  background: #1a2d40;
+  border: 1px solid #4a7a9b;
+  color: #7ab3d4;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.73rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.detail-btn:hover { background: #2d4a6a; color: #fff; }
+
+/* プランナビボタン */
 .plan-nav {
   width: 100%;
-  height: 30px;
+  height: 28px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   flex-shrink: 0;
 }
 .plan-nav::-webkit-scrollbar { display: none; }
-
 .plan-nav-inner {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 100%;
   height: 100%;
   justify-content: center;
-  padding: 0 8px;
+  padding: 0 4px;
   box-sizing: border-box;
 }
-
-.plan-nav-label {
-  font-size: 0.72rem;
-  color: #4a7a9b;
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0.05em;
-}
-
 .plan-nav-arrow {
   color: #4a7a9b;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   line-height: 1;
   flex-shrink: 0;
 }
-
 .set-tab {
   background: #1a2d40;
   color: #bbb;
   border: 1px solid #4a7a9b;
   border-radius: 6px;
-  padding: 4px 8px 4px 12px;
-  font-size: 0.8rem;
+  padding: 3px 8px 3px 10px;
+  font-size: 0.77rem;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 .set-tab:hover { background: #2d4a6a; color: #ddd; }
 .set-tab.active { background: #2d4a6a; color: #e0e0e0; border-color: #7ab3d4; font-weight: 600; }
-
+.set-info-btn {
+  font-size: 0.68rem;
+  color: #4a7a9b;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: color 0.2s;
+}
+.set-info-btn:hover { color: #7ab3d4; }
 .plan-tab {
   background: #1a2d40;
   color: #aaa;
   border: 1px solid #2d4a6a;
-  border-radius: 20px;
-  padding: 4px 14px;
-  font-size: 0.78rem;
+  border-radius: 16px;
+  padding: 3px 12px;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
 }
 .plan-tab:hover { border-color: #4a7a9b; color: #ccc; }
 .plan-tab.active { background: #0d1b2a; font-weight: 600; }
+
+/* ドロップダウン外クリックオーバーレイ */
+.click-outside {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+}
 
 .svg-wrapper {
   flex-shrink: 0;
@@ -727,28 +897,6 @@ h1 {
   pointer-events: none;
   white-space: nowrap;
   z-index: 100;
-}
-
-.hint {
-  font-size: 0.65rem;
-  color: #555;
-  margin-top: -2px;
-}
-
-.source-note {
-  font-size: 0.6rem;
-  color: #444;
-  margin-top: 2px;
-  text-align: center;
-}
-
-.source-note a {
-  color: #557;
-  text-decoration: none;
-}
-
-.source-note a:hover {
-  text-decoration: underline;
 }
 
 /* 国一覧モーダル */
