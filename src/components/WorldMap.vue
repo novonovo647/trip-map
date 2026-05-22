@@ -25,45 +25,30 @@
         <span class="plan-bar-label">コース:</span>
         <div class="plan-selector-wrap">
           <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
-            <span>{{ currentPlan ? currentPlan.label + (currentPlan.nights ? `（${currentPlan.nights}泊）` : '') : '選択' }}</span>
+            <span>{{ selectedSet !== null ? PLAN_SETS[selectedSet].setName : '選択' }}</span>
             <span class="selector-arrow">▾</span>
           </button>
           <div v-if="dropdownOpen" class="plan-dropdown">
             <div class="dropdown-item item-clear" @click="clearPlan">— 選択しない —</div>
-            <template v-for="(s, si) in PLAN_SETS" :key="si">
-              <div class="dropdown-group">{{ s.setName }}</div>
-              <div
-                v-for="(plan, pi) in s.plans" :key="pi"
-                class="dropdown-item"
-                :class="{ active: selectedSet === si && selectedPlan === pi }"
-                :style="selectedSet === si && selectedPlan === pi ? { color: plan.color } : {}"
-                @click="selectPlanFromDD(si, pi)"
-              >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</div>
-            </template>
+            <div
+              v-for="(s, si) in PLAN_SETS" :key="si"
+              class="dropdown-item"
+              :class="{ active: selectedSet === si }"
+              @click="selectSetFromDD(si)"
+            >{{ s.setName }}</div>
           </div>
         </div>
-        <button v-if="currentPlan" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
+        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
       </div>
-      <!-- プランナビボタン（横スクロール対応） -->
-      <div class="plan-nav">
-        <div class="plan-nav-inner">
-          <button
-            v-for="(s, i) in PLAN_SETS" :key="i"
-            class="set-tab"
-            :class="{ active: selectedSet === i }"
-            @click="selectSet(i)"
-          >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
-          <template v-if="selectedSet !== null">
-            <span class="plan-nav-arrow">›</span>
-            <button
-              v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
-              class="plan-tab"
-              :class="{ active: selectedPlan === j }"
-              :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
-              @click="selectedPlan = selectedPlan === j ? null : j"
-            >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
-          </template>
-        </div>
+      <!-- コース一覧（セット選択時に表示） -->
+      <div v-if="selectedSet !== null" class="course-list">
+        <button
+          v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
+          class="plan-tab"
+          :class="{ active: selectedPlan === j }"
+          :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
+          @click="selectedPlan = selectedPlan === j ? null : j"
+        >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
       </div>
     </div>
     <div ref="mapRef" class="svg-wrapper"></div>
@@ -587,6 +572,12 @@ function updatePlanOverlay() {
   })
 }
 
+function selectSetFromDD(si) {
+  selectedSet.value = si
+  selectedPlan.value = null
+  dropdownOpen.value = false
+}
+
 function selectSet(i) {
   selectedSet.value = selectedSet.value === i ? null : i
   selectedPlan.value = null
@@ -868,9 +859,24 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .plan-tab:hover { border-color: #4a7a9b; color: #ccc; }
 .plan-tab.active { background: #0d1b2a; font-weight: 600; }
+
+.course-list {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+}
+.course-list::-webkit-scrollbar { display: none; }
 
 /* ドロップダウン外クリックオーバーレイ */
 .click-outside {
