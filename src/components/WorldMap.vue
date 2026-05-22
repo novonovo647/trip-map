@@ -1,24 +1,23 @@
 <template>
   <div class="map-container">
-    <h1>🌍 海外渡航マップ</h1>
-    <div class="stats">
-      渡航済み: <strong>{{ totalCount }}</strong> / <strong class="total-features">{{ totalFeatures }}</strong> か国・地域
-    </div>
-    <div class="controls">
-      <div class="legend">
-        <span class="legend-item visited" @click="listMode = 'visited'">&#9632; 渡航済み</span>
-        <span class="legend-item unvisited" @click="listMode = 'unvisited'">&#9632; 未渡航</span>
+    <div class="header-row">
+      <h1>🌍 海外渡航マップ</h1>
+      <div class="stats">
+        渡航済み: <strong>{{ totalCount }}</strong> / <strong class="total-features">{{ totalFeatures }}</strong> か国・地域
       </div>
-      <button class="reset-btn" @click="resetZoom">リセット</button>
     </div>
-    <!-- 旅行セット選択 -->
-    <div class="set-tabs">
+    <div class="toolbar">
+      <span class="legend-item visited" @click="listMode = 'visited'">&#9632; 渡航済み</span>
+      <span class="legend-item unvisited" @click="listMode = 'unvisited'">&#9632; 未渡航</span>
+      <button class="reset-btn" @click="resetZoom">リセット</button>
+      <span class="toolbar-divider"></span>
+      <!-- 旅行セット選択 -->
       <button
         v-for="(s, i) in PLAN_SETS" :key="i"
         class="set-tab"
         :class="{ active: selectedSet === i }"
         @click="selectedSet = selectedSet === i ? null : i"
-      >{{ s.setName }}</button>
+      >{{ s.setName }}<span class="set-info-btn" @click.stop="modalSetIndex = i" title="詳細">ℹ</span></button>
     </div>
     <!-- プラン選択（セット選択時のみ） -->
     <div v-if="selectedSet !== null" class="plan-tabs">
@@ -61,6 +60,29 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- セット詳細モーダル -->
+    <Teleport to="body">
+      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null">
+        <div class="list-panel set-detail-panel">
+          <div class="list-header">
+            <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
+            <button class="close-btn" @click="modalSetIndex = null">✕</button>
+          </div>
+          <div class="set-detail-body">
+            <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
+              <h3 :style="{ color: plan.color }">{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</h3>
+              <div class="plan-route">
+                <template v-for="(city, k) in plan.cities" :key="k">
+                  <span v-if="k > 0" class="route-arrow"> → </span>{{ city.name }}
+                </template>
+              </div>
+              <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -83,8 +105,9 @@ const totalCount = ref(0)    // 英語名なし含む全件数（テンプレー
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
-const selectedSet  = ref(null) // null | セットindex
-const selectedPlan = ref(null) // null | プランindex（セット内）
+const selectedSet   = ref(null) // null | セットindex
+const selectedPlan  = ref(null) // null | プランindex（セット内）
+const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
 let svgRef = null
 let gRef = null
 let projRef = null
@@ -520,7 +543,7 @@ function updatePlanOverlay() {
       .attr('fill', plan.color).attr('stroke', '#fff').attr('stroke-width', 1)
     overlay.append('text')
       .attr('x', pt[0] + 6).attr('y', pt[1] - 4)
-      .attr('fill', '#fff').attr('font-size', '9px')
+      .attr('fill', '#fff').attr('font-size', '7px')
       .style('text-shadow', '0 0 3px #000, 0 0 3px #000')
       .text(city.name)
   })
@@ -556,46 +579,58 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px 4px;
+  gap: 4px;
+  padding: 6px 12px 4px;
   box-sizing: border-box;
   overflow: hidden;
 }
 
+.header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 h1 {
-  font-size: clamp(1.1rem, 4vw, 1.8rem);
+  font-size: clamp(1rem, 3.5vw, 1.5rem);
   color: #e0e0e0;
+  margin: 0;
 }
 
 .stats {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   color: #aaa;
 }
 
 .stats strong {
   color: #e63946;
-  font-size: 1.3rem;
+  font-size: 1.1rem;
 }
 
 .stats strong.total-features {
   color: #4a7a9b;
 }
 
-.controls {
+.toolbar {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.legend {
-  display: flex;
-  gap: 24px;
-  font-size: 0.9rem;
-}
-
-.legend-item.visited { color: #e63946; cursor: pointer; }
-.legend-item.unvisited { color: #4a7a9b; cursor: pointer; }
+.legend-item.visited { color: #e63946; cursor: pointer; font-size: 0.85rem; }
+.legend-item.unvisited { color: #4a7a9b; cursor: pointer; font-size: 0.85rem; }
 .legend-item:hover { text-decoration: underline; }
+
+.toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: #2d4a6a;
+  margin: 0 2px;
+}
 
 .reset-btn {
   background: #2d4a6a;
@@ -622,11 +657,14 @@ h1 {
   color: #bbb;
   border: 1px solid #4a7a9b;
   border-radius: 6px;
-  padding: 4px 14px;
+  padding: 4px 8px 4px 12px;
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .set-tab:hover { background: #2d4a6a; color: #ddd; }
 .set-tab.active { background: #2d4a6a; color: #e0e0e0; border-color: #7ab3d4; font-weight: 600; }
@@ -785,5 +823,65 @@ h1 {
 .strikethrough-item {
   text-decoration: line-through;
   opacity: 0.45;
+}
+
+/* セット詳細モーダル */
+.set-detail-panel {
+  max-width: 520px;
+}
+
+.set-detail-body {
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.plan-detail {
+  border-left: 3px solid;
+  padding-left: 12px;
+}
+
+.plan-detail h3 {
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+}
+
+.plan-route {
+  font-size: 0.82rem;
+  color: #ccc;
+  line-height: 1.7;
+  margin-bottom: 4px;
+}
+
+.route-arrow {
+  color: #4a7a9b;
+}
+
+.plan-countries {
+  font-size: 0.75rem;
+  color: #7ab3d4;
+  margin-top: 2px;
+}
+
+.set-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: rgba(74, 122, 155, 0.35);
+  color: #7ab3d4;
+  font-size: 0.65rem;
+  font-style: normal;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.set-info-btn:hover {
+  background: rgba(74, 122, 155, 0.75);
+  color: #fff;
 }
 </style>
