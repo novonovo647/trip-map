@@ -86,7 +86,7 @@
             <button class="close-btn" @click="modalSetIndex = null">✕</button>
           </div>
           <div class="set-detail-body">
-            <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
+            <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
               <h3 :style="{ color: plan.color }">{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</h3>
               <div class="plan-route">
                 <template v-for="(city, k) in plan.cities" :key="k">
@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
 import Papa from 'papaparse'
@@ -118,6 +118,48 @@ import rewind from 'geojson-rewind'
 import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
 import PLAN_SETS from '../assets/plan_sets.json'
+import CITIES_MASTER from '../assets/cities_master.json'
+
+// Nominatim 国名 → Natural Earth 国名 補正テーブル
+const COUNTRY_NAME_FIX = {
+  'Türkiye':                              'Turkey',
+  'United States':                         'United States of America',
+  'Republic of Korea':                     'South Korea',
+  "Democratic People's Republic of Korea": 'North Korea',
+  'Czech Republic':                        'Czechia',
+  'Russian Federation':                    'Russia',
+  'Islamic Republic of Iran':              'Iran',
+  'Syrian Arab Republic':                  'Syria',
+  "Lao People's Democratic Republic":      'Laos',
+  'Viet Nam':                              'Vietnam',
+  'United Republic of Tanzania':           'Tanzania',
+  'Republic of Moldova':                   'Moldova',
+  'Republic of North Macedonia':           'Macedonia',
+  'Collectivity of Saint Martin':          'France',
+  'French Polynesia':                      'French Polynesia',
+}
+
+// 都市データ: マスター + ランタイム取得キャッシュ (localStorage)
+const _localCache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
+const cityData = reactive({ ...CITIES_MASTER, ..._localCache })
+
+async function geocodeCity(name) {
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search'
+      + `?q=${encodeURIComponent(name)}&format=json&limit=1&addressdetails=1`
+    const res  = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0' } })
+    const data = await res.json()
+    if (!data.length) return null
+    const item = data[0]
+    const rawCountry = item.address?.country ?? ''
+    return {
+      coords:  [parseFloat(item.lon), parseFloat(item.lat)],
+      country: COUNTRY_NAME_FIX[rawCountry] ?? rawCountry,
+    }
+  } catch {
+    return null
+  }
+}
 
 const mapRef = ref(null)
 let visitedSet = new Set()   // Vue reactivity 不要：D3コールバック内で直接参照
@@ -140,9 +182,38 @@ let zoomBehavior = null
 let resizeObserver = null
 let redrawTimer = null
 
+function resolvePlan(plan) {
+  if (!plan) return null
+  const cities = plan.cities
+    .map(name => ({ name, coords: cityData[name]?.coords ?? null }))
+    .filter(c => c.coords !== null)
+  const countries = [...new Set(
+    plan.cities.map(name => cityData[name]?.country).filter(Boolean)
+  )]
+  return { ...plan, cities, countries }
+}
+
 const currentPlan = computed(() => {
   if (selectedSet.value === null || selectedPlan.value === null) return null
-  return PLAN_SETS[selectedSet.value]?.plans[selectedPlan.value] ?? null
+  return resolvePlan(PLAN_SETS[selectedSet.value]?.plans[selectedPlan.value] ?? null)
+})
+
+// 選択プランが変わったとき、未知の都市を Nominatim で自動取得
+watch([selectedSet, selectedPlan], async ([si, pi]) => {
+  if (si === null || pi === null) return
+  const plan = PLAN_SETS[si]?.plans[pi]
+  if (!plan) return
+  const missing = plan.cities.filter(name => !cityData[name])
+  if (!missing.length) return
+  for (const name of missing) {
+    const result = await geocodeCity(name)
+    if (result) {
+      cityData[name] = result  // reactive → currentPlan が自動再計算される
+      const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
+      cache[name] = result
+      localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
+    }
+  }
 })
 
 const REGION_ORDER = [

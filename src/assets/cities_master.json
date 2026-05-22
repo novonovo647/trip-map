@@ -1,0 +1,402 @@
+{
+  "東京": {
+    "coords": [
+      139.6917,
+      35.6895
+    ],
+    "country": "Japan"
+  },
+  "大阪": {
+    "coords": [
+      135.5022,
+      34.6937
+    ],
+    "country": "Japan"
+  },
+  "小松": {
+    "coords": [
+      136.4073,
+      36.394
+    ],
+    "country": "Japan"
+  },
+  "那覇": {
+    "coords": [
+      127.6792,
+      26.2124
+    ],
+    "country": "Japan"
+  },
+  "イスタンブール": {
+    "coords": [
+      28.9784,
+      41.0082
+    ],
+    "country": "Turkey"
+  },
+  "カッパドキア": {
+    "coords": [
+      34.8489,
+      38.6431
+    ],
+    "country": "Turkey"
+  },
+  "ソフィア": {
+    "coords": [
+      23.3219,
+      42.6977
+    ],
+    "country": "Bulgaria"
+  },
+  "ウィーン": {
+    "coords": [
+      16.3738,
+      48.2082
+    ],
+    "country": "Austria"
+  },
+  "ワシントンDC": {
+    "coords": [
+      -77.0369,
+      38.9072
+    ],
+    "country": "United States of America"
+  },
+  "サンフランシスコ": {
+    "coords": [
+      -122.4194,
+      37.7749
+    ],
+    "country": "United States of America"
+  },
+  "ニューヨーク": {
+    "coords": [
+      -74.006,
+      40.7128
+    ],
+    "country": "United States of America"
+  },
+  "ロサンゼルス": {
+    "coords": [
+      -118.2437,
+      34.0522
+    ],
+    "country": "United States of America"
+  },
+  "バンコク": {
+    "coords": [
+      100.5018,
+      13.7563
+    ],
+    "country": "Thailand"
+  },
+  "ルアンパバーン": {
+    "coords": [
+      102.1347,
+      19.8845
+    ],
+    "country": "Laos"
+  },
+  "香港": {
+    "coords": [
+      114.1694,
+      22.3193
+    ],
+    "country": "Hong Kong"
+  },
+  "マカオ": {
+    "coords": [
+      113.5439,
+      22.1987
+    ],
+    "country": "Macao"
+  },
+  "台北": {
+    "coords": [
+      121.5654,
+      25.033
+    ],
+    "country": "Taiwan"
+  },
+  "オークランド": {
+    "coords": [
+      174.7633,
+      -36.8485
+    ],
+    "country": "New Zealand"
+  },
+  "サモア": {
+    "coords": [
+      -171.775,
+      -13.8314
+    ],
+    "country": "Samoa"
+  },
+  "ムンバイ": {
+    "coords": [
+      72.8777,
+      19.076
+    ],
+    "country": "India"
+  },
+  "デリー": {
+    "coords": [
+      77.209,
+      28.6139
+    ],
+    "country": "India"
+  },
+  "モーリシャス": {
+    "coords": [
+      57.5522,
+      -20.1609
+    ],
+    "country": "Mauritius"
+  },
+  "ケープタウン": {
+    "coords": [
+      18.4241,
+      -33.9249
+    ],
+    "country": "South Africa"
+  },
+  "ヨハネスブルク": {
+    "coords": [
+      28.0473,
+      -26.2041
+    ],
+    "country": "South Africa"
+  },
+  "ナミビア(砂漠)": {
+    "coords": [
+      15.4,
+      -24.7
+    ],
+    "country": "Namibia"
+  },
+  "アディスアベバ": {
+    "coords": [
+      38.7369,
+      9.032
+    ],
+    "country": "Ethiopia"
+  },
+  "ロンドン": {
+    "coords": [
+      -0.1276,
+      51.5074
+    ],
+    "country": "United Kingdom"
+  },
+  "パリ": {
+    "coords": [
+      2.3522,
+      48.8566
+    ],
+    "country": "France"
+  },
+  "ローマ": {
+    "coords": [
+      12.4964,
+      41.9028
+    ],
+    "country": "Italy"
+  },
+  "バルセロナ": {
+    "coords": [
+      2.1734,
+      41.3851
+    ],
+    "country": "Spain"
+  },
+  "アムステルダム": {
+    "coords": [
+      4.9041,
+      52.3676
+    ],
+    "country": "Netherlands"
+  },
+  "ベルリン": {
+    "coords": [
+      13.405,
+      52.52
+    ],
+    "country": "Germany"
+  },
+  "プラハ": {
+    "coords": [
+      14.4378,
+      50.0755
+    ],
+    "country": "Czechia"
+  },
+  "ブダペスト": {
+    "coords": [
+      19.0402,
+      47.4979
+    ],
+    "country": "Hungary"
+  },
+  "ワルシャワ": {
+    "coords": [
+      21.0122,
+      52.2297
+    ],
+    "country": "Poland"
+  },
+  "ドバイ": {
+    "coords": [
+      55.2708,
+      25.2048
+    ],
+    "country": "United Arab Emirates"
+  },
+  "シンガポール": {
+    "coords": [
+      103.8198,
+      1.3521
+    ],
+    "country": "Singapore"
+  },
+  "クアラルンプール": {
+    "coords": [
+      101.6869,
+      3.139
+    ],
+    "country": "Malaysia"
+  },
+  "ホーチミン": {
+    "coords": [
+      106.6297,
+      10.8231
+    ],
+    "country": "Vietnam"
+  },
+  "ハノイ": {
+    "coords": [
+      105.8412,
+      21.0245
+    ],
+    "country": "Vietnam"
+  },
+  "ジャカルタ": {
+    "coords": [
+      106.8456,
+      -6.2088
+    ],
+    "country": "Indonesia"
+  },
+  "バリ": {
+    "coords": [
+      115.1889,
+      -8.4095
+    ],
+    "country": "Indonesia"
+  },
+  "マニラ": {
+    "coords": [
+      120.9842,
+      14.5995
+    ],
+    "country": "Philippines"
+  },
+  "ソウル": {
+    "coords": [
+      126.978,
+      37.5665
+    ],
+    "country": "South Korea"
+  },
+  "北京": {
+    "coords": [
+      116.4074,
+      39.9042
+    ],
+    "country": "China"
+  },
+  "上海": {
+    "coords": [
+      121.4737,
+      31.2304
+    ],
+    "country": "China"
+  },
+  "シドニー": {
+    "coords": [
+      151.2093,
+      -33.8688
+    ],
+    "country": "Australia"
+  },
+  "メルボルン": {
+    "coords": [
+      144.9631,
+      -37.8136
+    ],
+    "country": "Australia"
+  },
+  "カイロ": {
+    "coords": [
+      31.2357,
+      30.0444
+    ],
+    "country": "Egypt"
+  },
+  "ナイロビ": {
+    "coords": [
+      36.8219,
+      -1.2921
+    ],
+    "country": "Kenya"
+  },
+  "ダルエスサラーム": {
+    "coords": [
+      39.2083,
+      -6.7924
+    ],
+    "country": "Tanzania"
+  },
+  "リオデジャネイロ": {
+    "coords": [
+      -43.1729,
+      -22.9068
+    ],
+    "country": "Brazil"
+  },
+  "ブエノスアイレス": {
+    "coords": [
+      -58.3816,
+      -34.6037
+    ],
+    "country": "Argentina"
+  },
+  "リマ": {
+    "coords": [
+      -77.0428,
+      -12.0464
+    ],
+    "country": "Peru"
+  },
+  "メキシコシティ": {
+    "coords": [
+      -99.1332,
+      19.4326
+    ],
+    "country": "Mexico"
+  },
+  "トロント": {
+    "coords": [
+      -79.3832,
+      43.6532
+    ],
+    "country": "Canada"
+  },
+  "バンクーバー": {
+    "coords": [
+      -123.1216,
+      49.2827
+    ],
+    "country": "Canada"
+  },
+  "アンカラ": { "coords": [32.8540497, 39.9207759], "country": "Turkey" }
+}
