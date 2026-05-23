@@ -45,17 +45,18 @@
           </div>
         </div>
         <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
-        <span v-else class="detail-placeholder">— コースを選択すると表示 —</span>
       </div>
-      <!-- コース一覧（セット選択時に表示） -->
-      <div v-if="selectedSet !== null" class="course-list">
-        <button
-          v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
-          class="plan-tab"
-          :class="{ active: selectedPlan === j }"
-          :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
-          @click="selectedPlan = selectedPlan === j ? null : j"
-        >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+      <!-- コース一覧（常時描画・高さ予約でマップが動かない） -->
+      <div class="course-list">
+        <template v-if="selectedSet !== null">
+          <button
+            v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
+            class="plan-tab"
+            :class="{ active: selectedPlan === j }"
+            :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
+            @click="selectedPlan = selectedPlan === j ? null : j"
+          >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+        </template>
       </div>
     </div>
     <div ref="mapRef" class="svg-wrapper"></div>
@@ -993,12 +994,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .detail-btn:hover { background: #2d4a6a; color: #fff; }
-.detail-placeholder {
-  font-size: 0.72rem;
-  color: #445;
-  font-style: italic;
-  white-space: nowrap;
-}
+
 
 /* プランナビボタン */
 .plan-nav {
@@ -1068,6 +1064,7 @@ onUnmounted(() => {
 
 .course-list {
   width: 100%;
+  min-height: 34px;  /* コース未選択時も高さを確保してマップが動かない */
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
