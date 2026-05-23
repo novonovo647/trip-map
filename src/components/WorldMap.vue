@@ -183,8 +183,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
 import rewind from 'geojson-rewind'
 import Papa from 'papaparse'
@@ -252,10 +252,8 @@ const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
 const burgerOpen    = ref(false)
 const dropdownOpen  = ref(false)
 let mapInstance = null
-let countryLayer = null
-let overlayLayerGroup = null
-let resizeObserver = null
-let redrawTimer = null
+let mapReady = false
+let countriesGeoJSON = null
 
 function memoHtml(text) {
   if (!text) return ''
@@ -461,7 +459,7 @@ function unwrapLongitudes(pts) {
   return result
 }
 
-// GeoJSON [lng, lat] リングの日付変更線ジャンプを除去
+// GeoJSON リングの日付変更線ジャンプを除去（MapLibre でも必要）
 function wrapGeoJSONRing(ring) {
   if (!ring || ring.length === 0) return ring
   const result = [[...ring[0]]]
@@ -490,22 +488,23 @@ function wrapAntimeridian(fc) {
   return { ...fc, features: fc.features.map(f => ({ ...f, geometry: wrapGeoJSONGeometry(f.geometry) })) }
 }
 
-// 全フィーチャーの経度を offset 度シフトしたコピーを返す（太平洋越えスクロール用）
-function shiftFeaturesLon(features, offset) {
-  function shiftCoords(c) {
-    if (typeof c[0] === 'number') return [c[0] + offset, c[1]]
-    return c.map(shiftCoords)
+// 国ごとの塗り色プロパティを付与した GeoJSON を生成
+function buildCountriesData() {
+  if (!countriesGeoJSON) return { type: 'FeatureCollection', features: [] }
+  return {
+    ...countriesGeoJSON,
+    features: countriesGeoJSON.features.map(f => ({
+      ...f,
+      properties: {
+        ...f.properties,
+        fillColor: getCountryFill(f.properties?.name || ''),
+      },
+    })),
   }
-  return features.map(f => ({
-    ...f,
-    geometry: f.geometry
-      ? { ...f.geometry, coordinates: shiftCoords(f.geometry.coordinates) }
-      : f.geometry,
-  }))
 }
 
 function resetZoom() {
-  mapInstance?.setView([20, 10], 2)
+  mapInstance?.easeTo({ center: [135, 35], zoom: 1.5 })
 }
 
 async function drawMap() {
@@ -547,97 +546,207 @@ async function drawMap() {
   if (mapInstance) {
     mapInstance.remove()
     mapInstance = null
-    countryLayer = null
-    overlayLayerGroup = null
+    mapReady = false
   }
 
-  mapInstance = L.map(mapRef.value, {
-    center: [35, 135],
-    zoom: 3,
-    minZoom: 1,
-    maxZoom: 12,
-    zoomControl: true,
-    attributionControl: false,
-    worldCopyJump: false,
-    maxBounds: [[-85, -250], [85, 370]],
-    maxBoundsViscosity: 0.9,
-  })
+  countriesGeoJSON = countries
 
-  // 国塗り分けレイヤー（-360°・0°・+360° の3コピーで太平洋両側スクロールを実現）
-  const extendedCountries = {
-    ...countries,
-    features: [
-      ...shiftFeaturesLon(countries.features, -360),
-      ...countries.features,
-      ...shiftFeaturesLon(countries.features, 360),
-    ],
-  }
-  countryLayer = L.geoJSON(extendedCountries, {
-    style: feature => ({
-      fillColor: getCountryFill(feature.properties?.name || ''),
-      fillOpacity: 0.85,
-      color: '#1a2d40',
-      weight: 0.5,
-      noClip: true,
-    }),
-    onEachFeature: (feature, layer) => {
-      layer.on('mousemove', (e) => {
-        const propName = feature.properties?.name || ''
-        const jaName = getJaName(propName)
-        const vis = isVisited(propName)
+  await new Promise((resolve) => {
+    mapInstance = new maplibregl.Map({
+      container: mapRef.value,
+      style: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {},
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#0d1b2a' } }],
+      },
+      center: [135, 35],
+      zoom: 1.5,
+      minZoom: 0.5,
+      maxZoom: 12,
+      renderWorldCopies: true,
+      attributionControl: false,
+    })
+
+    mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+
+    mapInstance.on('load', () => {
+      // 国塗り分けソース + レイヤー（renderWorldCopies で自動3コピー）
+      mapInstance.addSource('countries', {
+        type: 'geojson',
+        data: buildCountriesData(),
+      })
+      mapInstance.addLayer({
+        id: 'countries-fill',
+        type: 'fill',
+        source: 'countries',
+        paint: {
+          'fill-color': ['get', 'fillColor'],
+          'fill-opacity': 0.85,
+        },
+      })
+      // ホバーハイライト用レイヤー（フィルターで制御）
+      mapInstance.addLayer({
+        id: 'countries-fill-hover',
+        type: 'fill',
+        source: 'countries',
+        paint: {
+          'fill-color': ['get', 'fillColor'],
+          'fill-opacity': 0.97,
+        },
+        filter: ['==', ['get', 'name'], ''],
+      })
+      mapInstance.addLayer({
+        id: 'countries-line',
+        type: 'line',
+        source: 'countries',
+        paint: {
+          'line-color': '#1a2d40',
+          'line-width': 0.5,
+        },
+      })
+
+      // アークソース + レイヤー
+      mapInstance.addSource('arcs', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      mapInstance.addLayer({
+        id: 'arc-lines',
+        type: 'line',
+        source: 'arcs',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 1.5,
+          'line-opacity': 0.85,
+          'line-dasharray': [6, 3],
+        },
+      })
+
+      // 都市マーカーソース + レイヤー
+      mapInstance.addSource('city-markers', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      mapInstance.addLayer({
+        id: 'city-circles',
+        type: 'circle',
+        source: 'city-markers',
+        paint: {
+          'circle-radius': 5,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 1,
+        },
+      })
+      mapInstance.addLayer({
+        id: 'city-labels',
+        type: 'symbol',
+        source: 'city-markers',
+        layout: {
+          'text-field': ['get', 'cityName'],
+          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-size': 11,
+          'text-anchor': 'left',
+          'text-offset': [0.7, 0],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#000000',
+          'text-halo-width': 1,
+        },
+      })
+
+      // 国ホバー: ハイライトレイヤーのフィルターを切り替え
+      mapInstance.on('mousemove', 'countries-fill', (e) => {
+        const propName = e.features[0]?.properties?.name || ''
+        mapInstance.setFilter('countries-fill-hover', ['==', ['get', 'name'], propName])
+        const rect = mapRef.value.getBoundingClientRect()
         tooltip.value = {
           visible: true,
-          x: e.originalEvent.clientX + 12,
-          y: e.originalEvent.clientY - 28,
-          text: `${jaName}${vis ? ' ✓ 渡航済み' : ''}`
+          x: rect.left + e.point.x + 12,
+          y: rect.top + e.point.y - 28,
+          text: `${getJaName(propName)}${isVisited(propName) ? ' ✓ 渡航済み' : ''}`,
         }
-        layer.setStyle({ fillOpacity: 0.95 })
       })
-      layer.on('mouseout', () => {
+      mapInstance.on('mouseleave', 'countries-fill', () => {
+        mapInstance.setFilter('countries-fill-hover', ['==', ['get', 'name'], ''])
         tooltip.value.visible = false
-        layer.setStyle({
-          fillColor: getCountryFill(feature.properties?.name || ''),
-          fillOpacity: 0.85,
-        })
       })
-    },
-  }).addTo(mapInstance)
 
-  // オーバーレイグループ（アーク・マーカー）
-  overlayLayerGroup = L.layerGroup().addTo(mapInstance)
+      // アーククリック
+      mapInstance.on('click', 'arc-lines', (e) => {
+        const props = e.features[0].properties
+        const rect = mapRef.value.getBoundingClientRect()
+        cityPopup.visible = false
+        legPopup.visible   = true
+        legPopup.x         = rect.left + e.point.x + 14
+        legPopup.y         = rect.top  + e.point.y - 10
+        legPopup.from      = props.from
+        legPopup.to        = props.to
+        legPopup.transport = props.transport || null
+        legPopup.url       = props.url       || null
+        legPopup.memo      = props.memo      || null
+      })
 
-  // マップクリックでポップアップを閉じる
-  mapInstance.on('click', () => {
-    cityPopup.visible = false
-    legPopup.visible = false
+      // 都市マーカークリック
+      mapInstance.on('click', 'city-circles', (e) => {
+        const props = e.features[0].properties
+        const rect = mapRef.value.getBoundingClientRect()
+        legPopup.visible  = false
+        cityPopup.visible = true
+        cityPopup.x       = rect.left + e.point.x + 14
+        cityPopup.y       = rect.top  + e.point.y - 10
+        cityPopup.name    = props.cityName
+        cityPopup.nights  = props.nights || null
+        cityPopup.memo    = props.memo   || null
+        cityPopup.spots   = JSON.parse(props.spots || '[]')
+      })
+
+      // マップ背景クリックでポップアップを閉じる
+      mapInstance.on('click', (e) => {
+        const features = mapInstance.queryRenderedFeatures(e.point, { layers: ['city-circles', 'arc-lines'] })
+        if (features.length === 0) {
+          cityPopup.visible = false
+          legPopup.visible  = false
+        }
+      })
+
+      mapInstance.on('mouseenter', 'city-circles', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'city-circles', () => { mapInstance.getCanvas().style.cursor = '' })
+      mapInstance.on('mouseenter', 'arc-lines',    () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'arc-lines',    () => { mapInstance.getCanvas().style.cursor = '' })
+
+      mapReady = true
+      if (activePlans.value.length > 0) updatePlanOverlay()
+      resolve()
+    })
   })
-
-  if (activePlans.value.length > 0) updatePlanOverlay()
 }
 
 // プランオーバーレイ（アーク + 都市マーカー）の更新
 function updatePlanOverlay() {
-  if (!mapInstance || !overlayLayerGroup) return
+  if (!mapInstance || !mapReady) return
 
   cityPopup.visible = false
 
   // 国の色を更新
-  countryLayer?.setStyle(feature => ({
-    fillColor: getCountryFill(feature.properties?.name || ''),
-    fillOpacity: 0.85,
-  }))
+  mapInstance.getSource('countries')?.setData(buildCountriesData())
 
-  // 既存オーバーレイを削除
-  overlayLayerGroup.clearLayers()
-  if (activePlans.value.length === 0) return
-
+  // アーク・マーカー GeoJSON を再構築してソースを更新
+  const arcFeatures    = []
+  const markerFeatures = []
   for (const plan of activePlans.value) {
-    drawPlanLayer(plan)
+    buildPlanFeatures(plan, arcFeatures, markerFeatures)
   }
+  mapInstance.getSource('arcs')?.setData({ type: 'FeatureCollection', features: arcFeatures })
+  mapInstance.getSource('city-markers')?.setData({ type: 'FeatureCollection', features: markerFeatures })
 }
 
-// 1プラン分のアーク・マーカーを描画
-function drawPlanLayer(plan) {
+// 1プラン分のアーク・マーカーを GeoJSON フィーチャーとして構築
+function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
   // 各区間の移動情報ルックアップ
   const arcTransports = []
   {
@@ -658,75 +767,47 @@ function drawPlanLayer(plan) {
 
   const cities = plan.cities.filter(i => i._type === 'city')
 
-  // アーク描画（大圏弧）-360°/0°/+360° の3コピーで東西パン時も表示
+  // アーク GeoJSON（renderWorldCopies で自動3コピー）
   for (let i = 0; i < cities.length - 1; i++) {
-    const from = cities[i].coords   // [lng, lat]
+    const from = cities[i].coords       // [lng, lat]
     const to   = cities[i + 1].coords
     const t    = arcTransports[i] ?? null
 
-    const pts = unwrapLongitudes(geodesicPoints(from, to))
+    const pts    = unwrapLongitudes(geodesicPoints(from, to))
+    const coords = pts.map(([lat, lng]) => [lng, lat])   // GeoJSON は [lng, lat]
 
-    ;[-360, 0, 360].forEach(offset => {
-      const shiftedPts = pts.map(([lat, lng]) => [lat, lng + offset])
-      const arc = L.polyline(shiftedPts, {
-        color: plan.color,
-        weight: 1.5,
-        dashArray: '6,3',
-        opacity: 0.85,
-      }).addTo(overlayLayerGroup)
-
-      arc.on('click', (e) => {
-        L.DomEvent.stopPropagation(e)
-        cityPopup.visible  = false
-        legPopup.visible   = true
-        legPopup.x         = e.originalEvent.clientX + 14
-        legPopup.y         = e.originalEvent.clientY - 10
-        legPopup.from      = cities[i].name
-        legPopup.to        = cities[i + 1].name
-        legPopup.transport = t?.transport ?? null
-        legPopup.url       = t?.url       ?? null
-        legPopup.memo      = t?.memo      ?? null
-      })
+    arcFeatures.push({
+      type: 'Feature',
+      properties: {
+        color:     plan.color,
+        from:      cities[i].name,
+        to:        cities[i + 1].name,
+        transport: t?.transport ?? null,
+        url:       t?.url       ?? null,
+        memo:      t?.memo      ?? null,
+      },
+      geometry: { type: 'LineString', coordinates: coords },
     })
   }
 
-  // 都市マーカー（-360°/0°/+360° の3コピー）
+  // 都市マーカー GeoJSON（renderWorldCopies で自動3コピー）
   const seen = new Set()
-  cities.forEach(city => {
+  for (const city of cities) {
     const key = city.coords.join(',')
-    if (seen.has(key)) return
+    if (seen.has(key)) continue
     seen.add(key)
-    const [lng, lat] = city.coords
-
-    ;[-360, 0, 360].forEach(offset => {
-      const marker = L.circleMarker([lat, lng + offset], {
-        radius: 5,
-        fillColor: plan.color,
-        color: '#fff',
-        weight: 1,
-        fillOpacity: 1,
-      }).addTo(overlayLayerGroup)
-
-      marker.bindTooltip(city.name, {
-        permanent: true,
-        direction: 'right',
-        className: 'city-label-tip',
-        offset: [6, 0],
-      }).openTooltip()
-
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e)
-        legPopup.visible  = false
-        cityPopup.visible = true
-        cityPopup.x       = e.originalEvent.clientX + 14
-        cityPopup.y       = e.originalEvent.clientY - 10
-        cityPopup.name    = city.name
-        cityPopup.nights  = city.nights
-        cityPopup.memo    = city.memo
-        cityPopup.spots   = city.spots
-      })
+    markerFeatures.push({
+      type: 'Feature',
+      properties: {
+        color:    plan.color,
+        cityName: city.name,
+        nights:   city.nights ?? null,
+        memo:     city.memo   ?? null,
+        spots:    JSON.stringify(city.spots || []),
+      },
+      geometry: { type: 'Point', coordinates: city.coords },  // [lng, lat]
     })
-  })
+  }
 }
 
 function selectSetFromDD(si) {
@@ -774,21 +855,10 @@ watch(activePlans, () => updatePlanOverlay())
 onMounted(async () => {
   await loadCSV()
   await drawMap()
-
-  resizeObserver = new ResizeObserver(() => {
-    clearTimeout(redrawTimer)
-    redrawTimer = setTimeout(() => {
-      mapInstance?.invalidateSize()
-    }, 150)
-  })
-  resizeObserver.observe(mapRef.value)
-
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
-  resizeObserver?.disconnect()
-  clearTimeout(redrawTimer)
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })
@@ -1110,33 +1180,37 @@ onUnmounted(() => {
   overflow: hidden;
   user-select: none;
   border-radius: 12px;
-  isolation: isolate; /* Leaflet内部z-index(400)をroot文脈から隔離 */
 }
 
-/* Leaflet コンテナのデフォルト背景をダーク海に */
-:deep(.leaflet-container) {
+/* MapLibre コンテナのデフォルト背景をダーク海に */
+:deep(.maplibregl-map) {
   background: #0d1b2a;
   border-radius: 12px;
 }
-
-/* 自己交差ポリゴン（ロシア等の日付変更線越え）を正しく塗る */
-:deep(.leaflet-overlay-pane path) {
-  fill-rule: evenodd;
+:deep(.maplibregl-canvas) {
+  border-radius: 12px;
 }
 
-/* 都市ラベル（常時表示ツールチップ） */
-:deep(.city-label-tip) {
+/* NavigationControl をダークテーマに合わせる */
+:deep(.maplibregl-ctrl-group) {
+  background: #1a2d40;
+  border: 1px solid #2d4a6a;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+:deep(.maplibregl-ctrl-group button) {
   background: transparent;
-  border: none;
-  box-shadow: none;
-  color: #fff;
-  font-size: 7px;
-  font-weight: normal;
-  padding: 0;
-  white-space: nowrap;
-  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  color: #7ab3d4;
 }
-:deep(.city-label-tip::before) { display: none; }
+:deep(.maplibregl-ctrl-group button:hover) {
+  background: #2d4a6a;
+}
+:deep(.maplibregl-ctrl-group button + button) {
+  border-top: 1px solid #2d4a6a;
+}
+:deep(.maplibregl-ctrl-icon) {
+  filter: invert(0.7) sepia(1) hue-rotate(180deg) saturate(0.8);
+}
 
 .tooltip {
   position: fixed;
