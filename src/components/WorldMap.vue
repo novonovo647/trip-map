@@ -13,6 +13,7 @@
         <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
         <div v-if="burgerOpen" class="burger-menu">
           <p class="burger-hint">スクロール: 拡大・縮小　ドラッグ: 移動</p>
+          <button class="burger-gh-btn" @click="showGhModal = true; burgerOpen = false">⚙ GitHub 設定</button>
           <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">地図データ: Natural Earth</a>
           <a href="https://ja.wikipedia.org/wiki/ISO_3166-1" target="_blank" rel="noopener">国・地域コード: ISO 3166-1</a>
         </div>
@@ -99,18 +100,35 @@
     </Teleport>
     <!-- 国一覧モーダル -->
     <Teleport to="body">
-      <div v-if="listMode" class="list-overlay" @click.self="listMode = null">
+      <div v-if="listMode" class="list-overlay" @click.self="listMode = null; countryEditMode = false">
         <div class="list-panel">
           <div class="list-header">
-            <h2>{{ listMode === 'visited' ? '渡航済み国・地域一覧' : '未渡航国・地域一覧' }}</h2>
-            <button class="close-btn" @click="listMode = null">✕</button>
+            <h2>
+              {{ listMode === 'visited' ? '渡航済み国・地域一覧' : '未渡航国・地域一覧' }}
+              <span v-if="countryEditMode" class="edit-diff-count">
+                <template v-if="countryEditAdded > 0">+{{ countryEditAdded }}</template>
+                <template v-if="countryEditRemoved > 0"> −{{ countryEditRemoved }}</template>
+              </span>
+            </h2>
+            <div class="list-header-actions">
+              <button v-if="ghPat && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
+              <button v-if="countryEditMode" class="gh-save-btn" :disabled="countryEditSaving" @click="saveCountryList">{{ countryEditSaving ? '保存中…' : '💾 GitHubに保存' }}</button>
+              <button v-if="countryEditMode" class="cancel-edit-btn" @click="countryEditMode = false">キャンセル</button>
+              <button class="close-btn" @click="listMode = null; countryEditMode = false">✕</button>
+            </div>
           </div>
+          <div v-if="countryEditMode && countryEditError" class="edit-error">{{ countryEditError }}</div>
           <div class="list-body">
             <template v-for="region in REGION_ORDER" :key="region">
               <div v-if="groupedList[region]" class="region-section">
                 <h3>{{ region }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
                 <ul>
-                  <li v-for="c in groupedList[region]" :key="c.en" :class="{ 'strikethrough-item': c.strikethrough }">{{ c.ja }}</li>
+                  <li v-for="c in groupedList[region]" :key="c.en"
+                    :class="{ 'strikethrough-item': c.strikethrough, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
+                    <span>{{ c.ja }}</span>
+                    <button v-if="countryEditMode && listMode === 'visited'" class="toggle-remove-btn" @click.stop="toggleCountryEdit(c.en, c.ja)" title="渡航済みから削除">✕</button>
+                    <button v-if="countryEditMode && listMode === 'unvisited'" class="toggle-add-btn" :class="{ active: countryEditSet.has(c.en) }" @click.stop="toggleCountryEdit(c.en, c.ja)" :title="countryEditSet.has(c.en) ? '追加を取り消す' : '渡航済みに追加'">{{ countryEditSet.has(c.en) ? '✓' : '+' }}</button>
+                  </li>
                 </ul>
               </div>
             </template>
@@ -121,13 +139,26 @@
 
     <!-- セット詳細モーダル -->
     <Teleport to="body">
-      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null">
+      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null; planEditMode = false">
         <div class="list-panel set-detail-panel">
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
-            <button class="close-btn" @click="modalSetIndex = null">✕</button>
+            <div class="list-header-actions">
+              <button v-if="ghPat && !planEditMode" class="edit-mode-btn" @click="enterPlanEditMode">✏ JSON編集</button>
+              <button v-if="planEditMode" class="gh-save-btn" :disabled="planEditSaving" @click="savePlanJson">{{ planEditSaving ? '保存中…' : '💾 GitHubに保存' }}</button>
+              <button v-if="planEditMode" class="cancel-edit-btn" @click="planEditMode = false">キャンセル</button>
+              <button class="close-btn" @click="modalSetIndex = null; planEditMode = false">✕</button>
+            </div>
           </div>
+          <div v-if="planEditMode && planEditError" class="edit-error">{{ planEditError }}</div>
           <div class="set-detail-body">
+            <!-- JSON 編集モード -->
+            <template v-if="planEditMode">
+              <textarea v-model="planEditJson" class="plan-json-editor" spellcheck="false"></textarea>
+              <p class="edit-note">保存後 GitHub にコミットされます。ページリロードで反映されます。</p>
+            </template>
+            <!-- 通常表示 -->
+            <template v-else>
             <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
               <h3 class="plan-detail-toggle" :style="{ color: plan.color }" @click="togglePlan(j)">
                 <span class="plan-toggle-icon">{{ openPlans[j] ? '▾' : '▸' }}</span>
@@ -168,6 +199,38 @@
                 </div>
                 <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
               </div>
+            </div>
+            </template><!-- /v-else 通常表示 -->
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- GitHub 設定モーダル -->
+    <Teleport to="body">
+      <div v-if="showGhModal" class="list-overlay" @click.self="showGhModal = false">
+        <div class="list-panel gh-settings-panel">
+          <div class="list-header">
+            <h2>⚙ GitHub 設定</h2>
+            <button class="close-btn" @click="showGhModal = false">✕</button>
+          </div>
+          <div class="gh-settings-body">
+            <label class="gh-label">Owner
+              <input v-model="ghOwner" class="gh-input" placeholder="yourname" />
+            </label>
+            <label class="gh-label">Repository
+              <input v-model="ghRepo" class="gh-input" placeholder="trip-map" />
+            </label>
+            <label class="gh-label">Branch
+              <input v-model="ghBranch" class="gh-input" placeholder="main" />
+            </label>
+            <label class="gh-label">Personal Access Token
+              <input type="password" v-model="ghPat" class="gh-input gh-pat" placeholder="ghp_…" autocomplete="off" />
+              <small class="gh-hint">fine-grained PAT で contents (read/write) 権限のみ付与を推奨</small>
+            </label>
+            <div class="gh-actions">
+              <button class="gh-save-btn" @click="saveGhSettings">保存</button>
+              <button class="cancel-edit-btn" @click="showGhModal = false">キャンセル</button>
             </div>
           </div>
         </div>
@@ -332,12 +395,15 @@ const REGION_ORDER = [
 
 const groupedList = computed(() => {
   if (!listMode.value || allFeatureNames.value.length === 0) return {}
+  visitedVersion.value   // 保存後の強制再計算
+  const inEdit = countryEditMode.value
+  const editSet = countryEditSet.value
   const result = {}
   for (const name of allFeatureNames.value) {
     if (!name) continue
-    const visited = isVisited(name)
-    if (listMode.value === 'visited' && !visited) continue
-    if (listMode.value === 'unvisited' && visited) continue
+    const isV = inEdit ? editSet.has(name) : isVisited(name)
+    if (listMode.value === 'visited'   &&  !isV) continue
+    if (listMode.value === 'unvisited' &&   isV) continue
     if (listMode.value === 'unvisited' && name === 'Japan') continue
     const region = countryRegions[name] || 'その他'
     if (!result[region]) result[region] = []
@@ -850,6 +916,128 @@ function reloadApp() { window.location.reload() }
 
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
+// ─── GitHub 設定 ────────────────────────────────────────────
+const ghPat    = ref(localStorage.getItem('trip-gh-pat')    || '')
+const ghOwner  = ref(localStorage.getItem('trip-gh-owner')  || 'novonovo647')
+const ghRepo   = ref(localStorage.getItem('trip-gh-repo')   || 'trip-map')
+const ghBranch = ref(localStorage.getItem('trip-gh-branch') || 'main')
+const showGhModal = ref(false)
+
+function saveGhSettings() {
+  localStorage.setItem('trip-gh-pat',    ghPat.value)
+  localStorage.setItem('trip-gh-owner',  ghOwner.value)
+  localStorage.setItem('trip-gh-repo',   ghRepo.value)
+  localStorage.setItem('trip-gh-branch', ghBranch.value)
+  showGhModal.value = false
+}
+
+async function ghGetFile(path) {
+  const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}?ref=${ghBranch.value}`
+  const res  = await fetch(url, { headers: { Authorization: `token ${ghPat.value}`, Accept: 'application/vnd.github.v3+json' } })
+  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`)
+  const data = await res.json()
+  const raw  = atob(data.content.replace(/\n/g, ''))
+  const bytes = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+  return { content: new TextDecoder().decode(bytes), sha: data.sha }
+}
+
+async function ghPutFile(path, content, sha, message) {
+  const encoded = new TextEncoder().encode(content)
+  let b64 = ''
+  const chunk = 8192
+  for (let i = 0; i < encoded.length; i += chunk) {
+    b64 += String.fromCharCode(...encoded.slice(i, i + chunk))
+  }
+  const url  = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}`
+  const res  = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `token ${ghPat.value}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: btoa(b64), sha, branch: ghBranch.value }),
+  })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || `GitHub API ${res.status}`) }
+  return res.json()
+}
+
+// ─── 渡航済み国 編集 ────────────────────────────────────────
+const visitedVersion    = ref(0)     // groupedList の強制再計算トリガー
+const countryEditMode   = ref(false)
+const countryEditSet    = ref(new Set())
+const countryEditOrig   = ref(new Set())
+const countryEditSaving = ref(false)
+const countryEditError  = ref('')
+
+const countryEditAdded   = computed(() => { let n = 0; for (const en of countryEditSet.value) { if (!countryEditOrig.value.has(en)) n++ }; return n })
+const countryEditRemoved = computed(() => { let n = 0; for (const en of countryEditOrig.value) { if (!countryEditSet.value.has(en)) n++ }; return n })
+
+function enterCountryEditMode() {
+  countryEditSet.value  = new Set(visitedSet)
+  countryEditOrig.value = new Set(visitedSet)
+  countryEditError.value = ''
+  countryEditMode.value  = true
+}
+
+function toggleCountryEdit(enName, jaName) {
+  const next = new Set(countryEditSet.value)
+  if (next.has(enName)) { next.delete(enName) }
+  else { next.add(enName); if (jaName && !jaMapData[enName]) jaMapData[enName] = jaName }
+  countryEditSet.value = next
+}
+
+async function saveCountryList() {
+  countryEditSaving.value = true
+  countryEditError.value  = ''
+  try {
+    const lines = ['名称,英語名称']
+    for (const en of [...countryEditSet.value].sort()) {
+      const ja = jaMapData[en] || countryNamesJa[en] || en
+      lines.push(`${ja},${en}`)
+    }
+    const csv = lines.join('\n') + '\n'
+    const { sha } = await ghGetFile('src/data/country_list.csv')
+    await ghPutFile('src/data/country_list.csv', csv, sha, '渡航済み国リストを更新')
+    // in-memory 更新
+    visitedSet = new Set(countryEditSet.value)
+    totalCount.value = visitedSet.size
+    visitedVersion.value++
+    mapInstance?.getSource('countries')?.setData(buildCountriesData())
+    countryEditMode.value  = false
+    countryEditOrig.value  = new Set(visitedSet)
+  } catch (e) {
+    countryEditError.value = e.message
+  } finally {
+    countryEditSaving.value = false
+  }
+}
+
+// ─── プラン JSON 編集 ────────────────────────────────────────
+const planEditMode   = ref(false)
+const planEditJson   = ref('')
+const planEditSaving = ref(false)
+const planEditError  = ref('')
+
+function enterPlanEditMode() {
+  planEditJson.value  = JSON.stringify(PLAN_SETS, null, 2)
+  planEditError.value = ''
+  planEditMode.value  = true
+}
+
+async function savePlanJson() {
+  planEditSaving.value = true
+  planEditError.value  = ''
+  try {
+    JSON.parse(planEditJson.value)   // バリデーション
+    const { sha } = await ghGetFile('src/data/plan_sets.json')
+    await ghPutFile('src/data/plan_sets.json', planEditJson.value, sha, 'プランデータを更新')
+    planEditMode.value = false
+    showUpdateBanner.value = true    // リロードを促す
+  } catch (e) {
+    planEditError.value = e instanceof SyntaxError ? `JSON エラー: ${e.message}` : e.message
+  } finally {
+    planEditSaving.value = false
+  }
+}
+
 watch(activePlans, () => updatePlanOverlay())
 
 onMounted(async () => {
@@ -1346,6 +1534,188 @@ onUnmounted(() => {
   padding: 16px 20px 12px;
   border-bottom: 1px solid #2d4a6a;
   flex-shrink: 0;
+  gap: 8px;
+}
+
+.list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 編集モードボタン */
+.edit-mode-btn {
+  background: #1a2d40;
+  border: 1px solid #4a7a9b;
+  color: #7ab3d4;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.edit-mode-btn:hover { background: #2d4a6a; }
+
+/* GitHub 保存ボタン */
+.gh-save-btn {
+  background: #1a3a1a;
+  border: 1px solid #3a7a3a;
+  color: #7ad47a;
+  border-radius: 6px;
+  padding: 3px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.gh-save-btn:hover:not(:disabled) { background: #2a5a2a; }
+.gh-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cancel-edit-btn {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  color: #aaa;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cancel-edit-btn:hover { background: #3a3a3a; }
+
+/* 変更数インジケータ */
+.edit-diff-count {
+  font-size: 0.75rem;
+  color: #7ad47a;
+  font-weight: normal;
+  margin-left: 6px;
+}
+
+/* エラー表示 */
+.edit-error {
+  background: rgba(200, 50, 50, 0.15);
+  border-left: 3px solid #e63946;
+  color: #ff8888;
+  font-size: 0.8rem;
+  padding: 6px 16px;
+  flex-shrink: 0;
+  word-break: break-all;
+}
+
+/* 国リスト: リストアイテムのトグルボタン */
+.region-section ul li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.region-section ul li span { flex: 1; }
+
+.toggle-remove-btn {
+  background: none;
+  border: 1px solid #664444;
+  color: #e66;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  line-height: 1.4;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.toggle-remove-btn:hover { background: rgba(200,60,60,0.2); }
+
+.toggle-add-btn {
+  background: none;
+  border: 1px solid #446644;
+  color: #8c8;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  line-height: 1.4;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  min-width: 22px;
+  text-align: center;
+}
+.toggle-add-btn:hover { background: rgba(60,180,60,0.2); }
+.toggle-add-btn.active { background: rgba(60,180,60,0.25); border-color: #7ad47a; color: #7ad47a; }
+
+.edit-item-new { background: rgba(60,180,60,0.08); border-radius: 4px; }
+
+/* GitHub 設定パネル */
+.gh-settings-panel { max-width: 420px; }
+.gh-settings-body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.gh-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #bbb;
+}
+.gh-input {
+  background: #0d1b2a;
+  border: 1px solid #2d4a6a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.gh-input:focus { border-color: #4a7a9b; }
+.gh-pat { font-family: monospace; letter-spacing: 0.05em; }
+.gh-hint { color: #556; font-size: 0.72rem; margin-top: 2px; }
+.gh-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* バーガーメニュー内のボタン */
+.burger-gh-btn {
+  background: none;
+  border: 1px solid #2d4a6a;
+  color: #7ab3d4;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+.burger-gh-btn:hover { background: #1a2d40; }
+
+/* プラン JSON エディタ */
+.plan-json-editor {
+  width: 100%;
+  min-height: 340px;
+  background: #0d1b2a;
+  border: 1px solid #2d4a6a;
+  border-radius: 6px;
+  color: #c5d8e8;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 10px 12px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.plan-json-editor:focus { border-color: #4a7a9b; }
+.edit-note {
+  font-size: 0.75rem;
+  color: #556;
+  margin: 6px 0 0;
+  font-style: italic;
 }
 
 .list-header h2 {
