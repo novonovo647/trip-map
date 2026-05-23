@@ -181,12 +181,12 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
-import * as d3 from 'd3'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import * as topojson from 'topojson-client'
 import Papa from 'papaparse'
 import csvRaw from '../data/country_list.csv?raw'
 import worldData from '../assets/countries-10m.json'
-import rewind from 'geojson-rewind'
 import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
 import PLAN_SETS from '../data/plan_sets.json'
@@ -248,11 +248,9 @@ const selectedPlan  = ref(null) // null | プランindex（セット内）
 const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
 const burgerOpen    = ref(false)
 const dropdownOpen  = ref(false)
-let svgRef = null
-let gRef = null
-let projRef = null
-let pathRef = null
-let zoomBehavior = null
+let mapInstance = null
+let countryLayer = null
+let overlayLayerGroup = null
 let resizeObserver = null
 let redrawTimer = null
 
@@ -414,10 +412,45 @@ async function loadCSV() {
   })
 }
 
-function resetZoom() {
-  if (svgRef && zoomBehavior) {
-    svgRef.transition().duration(500).call(zoomBehavior.transform, d3.zoomIdentity)
+// 大圏弧の座標列を計算（球面線形補間）
+function geodesicPoints(from, to, n = 60) {
+  const toRad = d => d * Math.PI / 180
+  const toDeg = r => r * 180 / Math.PI
+  const [lon1, lat1] = from.map(toRad)
+  const [lon2, lat2] = to.map(toRad)
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.sin((lat2 - lat1) / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2
+  ))
+  if (d < 0.001) return [[toDeg(lat1), toDeg(lon1)], [toDeg(lat2), toDeg(lon2)]]
+  const pts = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const A = Math.sin((1 - t) * d) / Math.sin(d)
+    const B = Math.sin(t * d) / Math.sin(d)
+    const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2)
+    const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2)
+    const z = A * Math.sin(lat1) + B * Math.sin(lat2)
+    pts.push([toDeg(Math.atan2(z, Math.sqrt(x * x + y * y))), toDeg(Math.atan2(y, x))])
   }
+  return pts
+}
+
+// 日付変更線をまたぐ経度ジャンプを除去（Leaflet 用）
+function unwrapLongitudes(pts) {
+  const result = [pts[0]]
+  for (let i = 1; i < pts.length; i++) {
+    const prevLng = result[i - 1][1]
+    let lng = pts[i][1]
+    while (lng - prevLng > 180) lng -= 360
+    while (lng - prevLng < -180) lng += 360
+    result.push([pts[i][0], lng])
+  }
+  return result
+}
+
+function resetZoom() {
+  mapInstance?.setView([20, 10], 2)
 }
 
 async function drawMap() {
@@ -435,12 +468,12 @@ async function drawMap() {
         const lons = poly[0].map(c => c[0])
         const lats = poly[0].map(c => c[1])
         const lonMin = Math.min(...lons), latMax = Math.max(...lats)
-        if (lonMin < -50 && latMax < 10)           buckets['Fr. Guiana'].push(poly)   // フランス領ギアナ
-        else if (lonMin < -40 && latMax < 15.5)    buckets['Martinique'].push(poly)    // マルティニーク
-        else if (lonMin < -40 && latMax < 20)      buckets['Guadeloupe'].push(poly)    // グアドループ
-        else if (lonMin > 50  && latMax < 0)       buckets['Réunion'].push(poly)       // レユニオン
-        else if (lonMin > 40  && latMax < 0)       buckets['Mayotte'].push(poly)       // マヨット
-        else                                        buckets._france.push(poly)          // 本土・コルシカ等
+        if (lonMin < -50 && latMax < 10)           buckets['Fr. Guiana'].push(poly)
+        else if (lonMin < -40 && latMax < 15.5)    buckets['Martinique'].push(poly)
+        else if (lonMin < -40 && latMax < 20)      buckets['Guadeloupe'].push(poly)
+        else if (lonMin > 50  && latMax < 0)       buckets['Réunion'].push(poly)
+        else if (lonMin > 40  && latMax < 0)       buckets['Mayotte'].push(poly)
+        else                                        buckets._france.push(poly)
       })
       france.geometry.coordinates = buckets._france
       Object.entries(buckets).forEach(([name, polys]) => {
@@ -455,165 +488,92 @@ async function drawMap() {
   allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
   totalFeatures.value = allFeatureNames.value.length
 
-  const wrapper = mapRef.value
-  const container = wrapper.parentElement
-  const containerW = wrapper.clientWidth || (container.clientWidth - 24)
-  // 利用可能な高さ（ヘッダー要素の高さを実測して差し引く）
-  let siblingsH = 0
-  for (const child of container.children) {
-    if (child !== wrapper) siblingsH += child.offsetHeight
-  }
-  const numGaps = Math.max(container.children.length - 1, 0)
-  const availH = Math.max(container.clientHeight - siblingsH - numGaps * 6 - 12, 80)
-  const aspect = 960 / 487
-  const widthConstrainedH = containerW / aspect
-  let width = containerW
-  let height, projScale, xMin, xMax, yMin, yMax
-
-  if (widthConstrainedH <= availH) {
-    // 縦向き：高さフィル、地図が横にはみ出す → 横ドラッグで表示
-    height = availH
-    const mapW = height * aspect
-    projScale = mapW / 6.3
-    xMin = (width - mapW) / 2
-    xMax = (width + mapW) / 2
-    yMin = 0
-    yMax = height
-  } else {
-    // 横向き：幅フィル、地図が縦にはみ出す → 縦ドラッグで表示
-    height = availH
-    const mapH = width / aspect
-    projScale = width / 6.3
-    xMin = 0
-    xMax = width
-    yMin = (height - mapH) / 2
-    yMax = (height + mapH) / 2
+  // 既存マップを破棄してから再生成
+  if (mapInstance) {
+    mapInstance.remove()
+    mapInstance = null
+    countryLayer = null
+    overlayLayerGroup = null
   }
 
-  width = Math.floor(Math.max(width, 100))
-  height = Math.floor(Math.max(height, 50))
-
-  // winding order の誤りを選択的に修正
-  // rewind が bbox を大幅に改善した場合のみ適用（Russia/Fiji 等 antimeridian 国には適用しない）
-  const projection = d3.geoNaturalEarth1()
-    .scale(projScale)
-    .translate([width / 2, height / 2])
-  const path = d3.geoPath().projection(projection)
-  projRef = projection
-  pathRef = path
-  const svgArea = width * height
-  countries.features.forEach(feature => {
-    const b = path.bounds(feature)
-    const area = (b[1][0] - b[0][0]) * (b[1][1] - b[0][1])
-    if (area > svgArea * 0.15) {
-      const origGeom = JSON.parse(JSON.stringify(feature.geometry))
-      rewind(feature, true)
-      const b2 = path.bounds(feature)
-      const area2 = (b2[1][0] - b2[0][0]) * (b2[1][1] - b2[0][1])
-      if (area2 > area * 0.5) feature.geometry = origGeom // rewind が悪化した場合は元に戻す
-    }
+  mapInstance = L.map(mapRef.value, {
+    center: [20, 10],
+    zoom: 2,
+    minZoom: 1,
+    maxZoom: 12,
+    zoomControl: true,
+    attributionControl: true,
   })
 
-  const svg = d3.select(mapRef.value)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', '#0d1b2a')
-    .style('border-radius', '12px')
-    .style('cursor', 'grab')
+  // ダークタイル（ラベルなし）
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank">CartoDB</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(mapInstance)
 
-  svgRef = svg
-  gRef = null // reset before assign
+  // 国塗り分けレイヤー
+  countryLayer = L.geoJSON(countries, {
+    style: feature => ({
+      fillColor: getCountryFill(feature.properties?.name || ''),
+      fillOpacity: 0.85,
+      color: '#1a2d40',
+      weight: 0.5,
+    }),
+    onEachFeature: (feature, layer) => {
+      layer.on('mousemove', (e) => {
+        const propName = feature.properties?.name || ''
+        const jaName = getJaName(propName)
+        const vis = isVisited(propName)
+        tooltip.value = {
+          visible: true,
+          x: e.originalEvent.clientX + 12,
+          y: e.originalEvent.clientY - 28,
+          text: `${jaName}${vis ? ' ✓ 渡航済み' : ''}`
+        }
+        layer.setStyle({ fillOpacity: 0.95 })
+      })
+      layer.on('mouseout', () => {
+        tooltip.value.visible = false
+        layer.setStyle({
+          fillColor: getCountryFill(feature.properties?.name || ''),
+          fillOpacity: 0.85,
+        })
+      })
+    },
+  }).addTo(mapInstance)
 
-  // 海のグラデーション
-  const defs = svg.append('defs')
-  defs.append('linearGradient')
-    .attr('id', 'ocean-grad')
-    .attr('x1', '0%').attr('y1', '0%')
-    .attr('x2', '0%').attr('y2', '100%')
-    .selectAll('stop')
-    .data([
-      { offset: '0%', color: '#0d1b2a' },
-      { offset: '100%', color: '#1a3a5c' }
-    ])
-    .enter().append('stop')
-    .attr('offset', d => d.offset)
-    .attr('stop-color', d => d.color)
+  // オーバーレイグループ（アーク・マーカー）
+  overlayLayerGroup = L.layerGroup().addTo(mapInstance)
 
-  svg.append('rect')
-    .attr('width', width).attr('height', height)
-    .attr('fill', 'url(#ocean-grad)')
+  // マップクリックでポップアップを閉じる
+  mapInstance.on('click', () => {
+    cityPopup.visible = false
+    legPopup.visible = false
+  })
 
-  // ズーム対象のグループ
-  const g = svg.append('g').attr('class', 'map-g')
-  gRef = g
-
-  g.selectAll('.country')
-    .data(countries.features)
-    .enter()
-    .append('path')
-    .attr('class', 'country')
-    .attr('d', path)
-    .attr('fill', d => getCountryFill(d.properties?.name || ''))
-    .attr('stroke', '#0d1b2a')
-    .attr('stroke-width', 0.2)
-    .on('mousemove', function (event, d) {
-      const propName = d.properties?.name || ''
-      const jaName = getJaName(propName)
-      const vis = isVisited(propName)
-      tooltip.value = {
-        visible: true,
-        x: event.clientX + 12,
-        y: event.clientY - 28,
-        text: `${jaName}${vis ? ' ✓ 渡航済み' : ''}`
-      }
-      d3.select(this).attr('fill', getCountryHover(propName))
-    })
-    .on('mouseleave', function (event, d) {
-      tooltip.value.visible = false
-      d3.select(this).attr('fill', getCountryFill(d.properties?.name || ''))
-    })
-
-  // 国境線
-  g.append('path')
-    .datum(topojson.mesh(world, world.objects.countries, (a, b) => a !== b))
-    .attr('fill', 'none')
-    .attr('stroke', '#0d1b2a')
-    .attr('stroke-width', 0.2)
-    .attr('d', path)
-
-  // ズーム設定
-  zoomBehavior = d3.zoom()
-    .scaleExtent([1, 20])
-    .translateExtent([[xMin, yMin], [xMax, yMax]])
-    .on('zoom', (event) => {
-      g.attr('transform', event.transform)
-      svg.style('cursor', event.transform.k > 1 ? 'grabbing' : 'grab')
-    })
-
-  svg.call(zoomBehavior)
-    .on('dblclick.zoom', null) // ダブルクリックズームを無効化
-    .on('click', () => { cityPopup.visible = false; legPopup.visible = false })
+  if (currentPlan.value) updatePlanOverlay()
 }
 
 // プランオーバーレイ（アーク + 都市マーカー）の更新
 function updatePlanOverlay() {
-  if (!gRef || !projRef || !pathRef) return
+  if (!mapInstance || !overlayLayerGroup) return
 
-  // ポップアップを閉じる
   cityPopup.visible = false
 
   // 国の色を更新
-  gRef.selectAll('.country').attr('fill', d => getCountryFill(d.properties?.name || ''))
+  countryLayer?.setStyle(feature => ({
+    fillColor: getCountryFill(feature.properties?.name || ''),
+    fillOpacity: 0.85,
+  }))
 
   // 既存オーバーレイを削除
-  gRef.select('.plan-overlay').remove()
+  overlayLayerGroup.clearLayers()
   if (!currentPlan.value) return
 
   const plan = currentPlan.value
-  const overlay = gRef.append('g').attr('class', 'plan-overlay')
 
-  // ── 各区間の移動情報ルックアップ ─────────────────────────────
+  // 各区間の移動情報ルックアップ
   const arcTransports = []
   {
     let cityIdx = -1
@@ -631,96 +591,69 @@ function updatePlanOverlay() {
     }
   }
 
-  // ── アーク描画 ─────────────────────────────────────────────
   const cities = plan.cities.filter(i => i._type === 'city')
+
+  // アーク描画（大圏弧）
   for (let i = 0; i < cities.length - 1; i++) {
-    const from = cities[i].coords
+    const from = cities[i].coords   // [lng, lat]
     const to   = cities[i + 1].coords
     const t    = arcTransports[i] ?? null
 
-    // クリックハンドラ（全区間に表示）
-    function handleArcClick(event) {
-      event.stopPropagation()
-      cityPopup.visible = false
-      legPopup.visible  = true
-      legPopup.x = event.clientX + 14
-      legPopup.y = event.clientY - 10
+    const pts = unwrapLongitudes(geodesicPoints(from, to))
+    const arc = L.polyline(pts, {
+      color: plan.color,
+      weight: 1.5,
+      dashArray: '6,3',
+      opacity: 0.85,
+    }).addTo(overlayLayerGroup)
+
+    arc.on('click', (e) => {
+      L.DomEvent.stopPropagation(e)
+      cityPopup.visible  = false
+      legPopup.visible   = true
+      legPopup.x         = e.originalEvent.clientX + 14
+      legPopup.y         = e.originalEvent.clientY - 10
       legPopup.from      = cities[i].name
       legPopup.to        = cities[i + 1].name
       legPopup.transport = t?.transport ?? null
       legPopup.url       = t?.url       ?? null
       legPopup.memo      = t?.memo      ?? null
-    }
-
-    // 日付変更線をまたぐか判定（経度差 > 180°）
-    const lonDiff = Math.abs(from[0] - to[0])
-    if (lonDiff > 180) {
-      // 日付変更線をまたぐ場合は 2 分割して描画
-      const sign = from[0] > 0 ? 1 : -1
-      const lat  = (from[1] + to[1]) / 2
-      const seg1 = { type: 'LineString', coordinates: [from, [sign * 180, lat]] }
-      const seg2 = { type: 'LineString', coordinates: [[-sign * 180, lat], to] }
-      // 視覚パス
-      overlay.append('path').datum(seg1)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', plan.color).attr('stroke-width', 1.0)
-        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
-      overlay.append('path').datum(seg2)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', plan.color).attr('stroke-width', 1.0)
-        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
-      // ヒットエリア
-      overlay.append('path').datum(seg1)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', 'transparent').attr('stroke-width', 10)
-        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
-      overlay.append('path').datum(seg2)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', 'transparent').attr('stroke-width', 10)
-        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
-    } else {
-      const seg = { type: 'LineString', coordinates: [from, to] }
-      // 視覚パス
-      overlay.append('path').datum(seg)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', plan.color).attr('stroke-width', 1.0)
-        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
-      // ヒットエリア
-      overlay.append('path').datum(seg)
-        .attr('d', pathRef).attr('fill', 'none')
-        .attr('stroke', 'transparent').attr('stroke-width', 10)
-        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
-    }
+    })
   }
 
-  // ── 都市マーカー・ラベル ───────────────────────────────────
+  // 都市マーカー
   const seen = new Set()
   cities.forEach(city => {
     const key = city.coords.join(',')
     if (seen.has(key)) return
     seen.add(key)
-    const pt = projRef(city.coords)
-    if (!pt) return
-    overlay.append('circle')
-      .attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 5)
-      .attr('fill', plan.color).attr('stroke', '#fff').attr('stroke-width', 1)
-      .style('cursor', 'pointer')
-      .on('click', function(event) {
-        event.stopPropagation()
-        legPopup.visible  = false
-        cityPopup.visible = true
-        cityPopup.x = event.clientX + 14
-        cityPopup.y = event.clientY - 10
-        cityPopup.name = city.name
-        cityPopup.nights = city.nights
-        cityPopup.memo = city.memo
-        cityPopup.spots = city.spots
-      })
-    overlay.append('text')
-      .attr('x', pt[0] + 6).attr('y', pt[1] - 4)
-      .attr('fill', '#fff').attr('font-size', '7px')
-      .style('text-shadow', '0 0 3px #000, 0 0 3px #000')
-      .text(city.name)
+    const [lng, lat] = city.coords
+    const marker = L.circleMarker([lat, lng], {
+      radius: 5,
+      fillColor: plan.color,
+      color: '#fff',
+      weight: 1,
+      fillOpacity: 1,
+    }).addTo(overlayLayerGroup)
+
+    marker.bindTooltip(city.name, {
+      permanent: true,
+      direction: 'right',
+      className: 'city-label-tip',
+      offset: [6, 0],
+    }).openTooltip()
+
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e)
+      legPopup.visible  = false
+      cityPopup.visible = true
+      cityPopup.x       = e.originalEvent.clientX + 14
+      cityPopup.y       = e.originalEvent.clientY - 10
+      cityPopup.name    = city.name
+      cityPopup.nights  = city.nights
+      cityPopup.memo    = city.memo
+      cityPopup.spots   = city.spots
+    })
   })
 }
 
@@ -772,8 +705,7 @@ onMounted(async () => {
   resizeObserver = new ResizeObserver(() => {
     clearTimeout(redrawTimer)
     redrawTimer = setTimeout(() => {
-      d3.select(mapRef.value).selectAll('*').remove()
-      drawMap()
+      mapInstance?.invalidateSize()
     }, 150)
   })
   resizeObserver.observe(mapRef.value)
@@ -784,6 +716,7 @@ onMounted(async () => {
 onUnmounted(() => {
   resizeObserver?.disconnect()
   clearTimeout(redrawTimer)
+  mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })
 </script>
@@ -1095,12 +1028,34 @@ onUnmounted(() => {
 }
 
 .svg-wrapper {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 200px;
   width: 100%;
   position: relative;
   overflow: hidden;
   user-select: none;
+  border-radius: 12px;
 }
+
+/* Leaflet コンテナのデフォルト背景をダーク海に */
+:deep(.leaflet-container) {
+  background: #0d1b2a;
+  border-radius: 12px;
+}
+
+/* 都市ラベル（常時表示ツールチップ） */
+:deep(.city-label-tip) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 7px;
+  font-weight: normal;
+  padding: 0;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+:deep(.city-label-tip::before) { display: none; }
 
 .tooltip {
   position: fixed;
