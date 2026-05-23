@@ -45,6 +45,7 @@
           </div>
         </div>
         <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
+        <span v-else class="detail-placeholder">— コースを選択すると表示 —</span>
       </div>
       <!-- コース一覧（セット選択時に表示） -->
       <div v-if="selectedSet !== null" class="course-list">
@@ -184,6 +185,7 @@ import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import * as topojson from 'topojson-client'
+import rewind from 'geojson-rewind'
 import Papa from 'papaparse'
 import csvRaw from '../data/country_list.csv?raw'
 import worldData from '../assets/countries-10m.json'
@@ -449,13 +451,56 @@ function unwrapLongitudes(pts) {
   return result
 }
 
+// GeoJSON [lng, lat] リングの日付変更線ジャンプを除去
+function wrapGeoJSONRing(ring) {
+  if (!ring || ring.length === 0) return ring
+  const result = [[...ring[0]]]
+  for (let i = 1; i < ring.length; i++) {
+    const prev = result[i - 1][0]
+    let lng = ring[i][0]
+    while (lng - prev > 180) lng -= 360
+    while (lng - prev < -180) lng += 360
+    result.push([lng, ring[i][1]])
+  }
+  return result
+}
+
+function wrapGeoJSONGeometry(geometry) {
+  if (!geometry) return geometry
+  if (geometry.type === 'Polygon') {
+    return { ...geometry, coordinates: geometry.coordinates.map(wrapGeoJSONRing) }
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return { ...geometry, coordinates: geometry.coordinates.map(poly => poly.map(wrapGeoJSONRing)) }
+  }
+  return geometry
+}
+
+function wrapAntimeridian(fc) {
+  return { ...fc, features: fc.features.map(f => ({ ...f, geometry: wrapGeoJSONGeometry(f.geometry) })) }
+}
+
+// 全フィーチャーの経度を offset 度シフトしたコピーを返す（太平洋越えスクロール用）
+function shiftFeaturesLon(features, offset) {
+  function shiftCoords(c) {
+    if (typeof c[0] === 'number') return [c[0] + offset, c[1]]
+    return c.map(shiftCoords)
+  }
+  return features.map(f => ({
+    ...f,
+    geometry: f.geometry
+      ? { ...f.geometry, coordinates: shiftCoords(f.geometry.coordinates) }
+      : f.geometry,
+  }))
+}
+
 function resetZoom() {
   mapInstance?.setView([20, 10], 2)
 }
 
 async function drawMap() {
   const world = worldData
-  const countries = topojson.feature(world, world.objects.countries)
+  const countries = wrapAntimeridian(rewind(topojson.feature(world, world.objects.countries), false))
 
   // France の海外領土を本土から分離して個別フィーチャーとして描画
   // （フランス領ギアナ・マルティニーク・グアドループ・レユニオン・マヨット）
@@ -497,28 +542,33 @@ async function drawMap() {
   }
 
   mapInstance = L.map(mapRef.value, {
-    center: [20, 10],
-    zoom: 2,
+    center: [35, 135],
+    zoom: 3,
     minZoom: 1,
     maxZoom: 12,
     zoomControl: true,
-    attributionControl: true,
+    attributionControl: false,
+    worldCopyJump: false,
+    maxBounds: [[-85, -250], [85, 370]],
+    maxBoundsViscosity: 0.9,
   })
 
-  // ダークタイル（ラベルなし）
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank">CartoDB</a>',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(mapInstance)
-
-  // 国塗り分けレイヤー
-  countryLayer = L.geoJSON(countries, {
+  // 国塗り分けレイヤー（-360°・0°・+360° の3コピーで太平洋両側スクロールを実現）
+  const extendedCountries = {
+    ...countries,
+    features: [
+      ...shiftFeaturesLon(countries.features, -360),
+      ...countries.features,
+      ...shiftFeaturesLon(countries.features, 360),
+    ],
+  }
+  countryLayer = L.geoJSON(extendedCountries, {
     style: feature => ({
       fillColor: getCountryFill(feature.properties?.name || ''),
       fillOpacity: 0.85,
       color: '#1a2d40',
       weight: 0.5,
+      noClip: true,
     }),
     onEachFeature: (feature, layer) => {
       layer.on('mousemove', (e) => {
@@ -621,38 +671,42 @@ function updatePlanOverlay() {
     })
   }
 
-  // 都市マーカー
+  // 都市マーカー（-360°/0°/+360° の3コピーで東西パン時も表示）
   const seen = new Set()
   cities.forEach(city => {
     const key = city.coords.join(',')
     if (seen.has(key)) return
     seen.add(key)
     const [lng, lat] = city.coords
-    const marker = L.circleMarker([lat, lng], {
-      radius: 5,
-      fillColor: plan.color,
-      color: '#fff',
-      weight: 1,
-      fillOpacity: 1,
-    }).addTo(overlayLayerGroup)
 
-    marker.bindTooltip(city.name, {
-      permanent: true,
-      direction: 'right',
-      className: 'city-label-tip',
-      offset: [6, 0],
-    }).openTooltip()
+    const offsets = [-360, 0, 360]
+    offsets.forEach(offset => {
+      const marker = L.circleMarker([lat, lng + offset], {
+        radius: 5,
+        fillColor: plan.color,
+        color: '#fff',
+        weight: 1,
+        fillOpacity: 1,
+      }).addTo(overlayLayerGroup)
 
-    marker.on('click', (e) => {
-      L.DomEvent.stopPropagation(e)
-      legPopup.visible  = false
-      cityPopup.visible = true
-      cityPopup.x       = e.originalEvent.clientX + 14
-      cityPopup.y       = e.originalEvent.clientY - 10
-      cityPopup.name    = city.name
-      cityPopup.nights  = city.nights
-      cityPopup.memo    = city.memo
-      cityPopup.spots   = city.spots
+      marker.bindTooltip(city.name, {
+        permanent: true,
+        direction: 'right',
+        className: 'city-label-tip',
+        offset: [6, 0],
+      }).openTooltip()
+
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e)
+        legPopup.visible  = false
+        cityPopup.visible = true
+        cityPopup.x       = e.originalEvent.clientX + 14
+        cityPopup.y       = e.originalEvent.clientY - 10
+        cityPopup.name    = city.name
+        cityPopup.nights  = city.nights
+        cityPopup.memo    = city.memo
+        cityPopup.spots   = city.spots
+      })
     })
   })
 }
@@ -939,6 +993,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .detail-btn:hover { background: #2d4a6a; color: #fff; }
+.detail-placeholder {
+  font-size: 0.72rem;
+  color: #445;
+  font-style: italic;
+  white-space: nowrap;
+}
 
 /* プランナビボタン */
 .plan-nav {
@@ -1035,12 +1095,18 @@ onUnmounted(() => {
   overflow: hidden;
   user-select: none;
   border-radius: 12px;
+  isolation: isolate; /* Leaflet内部z-index(400)をroot文脈から隔離 */
 }
 
 /* Leaflet コンテナのデフォルト背景をダーク海に */
 :deep(.leaflet-container) {
   background: #0d1b2a;
   border-radius: 12px;
+}
+
+/* 自己交差ポリゴン（ロシア等の日付変更線越え）を正しく塗る */
+:deep(.leaflet-overlay-pane path) {
+  fill-rule: evenodd;
 }
 
 /* 都市ラベル（常時表示ツールチップ） */
