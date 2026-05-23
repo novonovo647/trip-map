@@ -1,5 +1,11 @@
 <template>
   <div class="map-container">
+    <!-- 更新バナー -->
+    <div v-if="showUpdateBanner" class="update-banner">
+      <span>🔄 新しいバージョンが利用可能です</span>
+      <button class="update-btn" @click="reloadApp">再読み込み</button>
+      <button class="update-dismiss" @click="showUpdateBanner = false">✕</button>
+    </div>
     <!-- トップバー: タイトル（リセット） + バーガーメニュー -->
     <div class="top-bar">
       <h1 class="title-reset" @click="resetZoom" title="クリックでリセット">🌍 海外渡航マップ</h1>
@@ -751,6 +757,12 @@ function togglePlan(j) {
   openPlans.value[j] = !openPlans.value[j]
 }
 
+const showUpdateBanner = ref(false)
+
+function reloadApp() { window.location.reload() }
+
+function onUpdateAvailable() { showUpdateBanner.value = true }
+
 watch(currentPlan, () => updatePlanOverlay())
 
 onMounted(async () => {
@@ -765,11 +777,14 @@ onMounted(async () => {
     }, 150)
   })
   resizeObserver.observe(mapRef.value)
+
+  window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
   clearTimeout(redrawTimer)
+  window.removeEventListener('app-update-available', onUpdateAvailable)
 })
 </script>
 
@@ -785,6 +800,43 @@ onUnmounted(() => {
   box-sizing: border-box;
   overflow: hidden;
 }
+
+/* 更新バナー */
+.update-banner {
+  width: 100%;
+  background: #2ecc71;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.update-btn {
+  background: rgba(255,255,255,0.25);
+  border: 1px solid rgba(255,255,255,0.6);
+  color: #fff;
+  padding: 3px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.update-btn:hover { background: rgba(255,255,255,0.4); }
+.update-dismiss {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 4px;
+  line-height: 1;
+  margin-left: auto;
+}
+.update-dismiss:hover { color: #fff; }
 
 /* トップバー */
 .top-bar {
