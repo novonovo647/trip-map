@@ -52,9 +52,9 @@
           <button
             v-for="(plan, j) in PLAN_SETS[selectedSet].plans" :key="j"
             class="plan-tab"
-            :class="{ active: selectedPlan === j }"
-            :style="selectedPlan === j ? { borderColor: plan.color, color: plan.color } : {}"
-            @click="selectedPlan = selectedPlan === j ? null : j"
+            :class="{ active: selectedPlan.has(j) }"
+            :style="selectedPlan.has(j) ? { borderColor: plan.color, color: plan.color } : {}"
+            @click="togglePlanTab(j)"
           >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
         </template>
       </div>
@@ -247,7 +247,7 @@ const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null,
 const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
 const selectedSet   = ref(null) // null | セットindex
-const selectedPlan  = ref(null) // null | プランindex（セット内）
+const selectedPlan  = ref(new Set()) // Set<number> 選択中のプランindex（セット内）
 const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
 const burgerOpen    = ref(false)
 const dropdownOpen  = ref(false)
@@ -295,28 +295,33 @@ function resolvePlan(plan) {
   return { ...plan, cities: items, countries }
 }
 
-const currentPlan = computed(() => {
-  if (selectedSet.value === null || selectedPlan.value === null) return null
-  return resolvePlan(PLAN_SETS[selectedSet.value]?.plans[selectedPlan.value] ?? null)
+// 選択中の全プランを解決した配列
+const activePlans = computed(() => {
+  if (selectedSet.value === null || selectedPlan.value.size === 0) return []
+  return [...selectedPlan.value]
+    .sort()
+    .map(pi => resolvePlan(PLAN_SETS[selectedSet.value]?.plans[pi] ?? null))
+    .filter(Boolean)
 })
 
 // 選択プランが変わったとき、未知の都市を Nominatim で自動取得
-watch([selectedSet, selectedPlan], async ([si, pi]) => {
-  if (si === null || pi === null) return
-  const plan = PLAN_SETS[si]?.plans[pi]
-  if (!plan) return
-  const missing = plan.cities
-    .filter(c => c.name !== undefined)
-    .map(c => c.name)
-    .filter(name => !cityData[name])
-  if (!missing.length) return
-  for (const name of missing) {
-    const result = await geocodeCity(name)
-    if (result) {
-      cityData[name] = result  // reactive → currentPlan が自動再計算される
-      const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
-      cache[name] = result
-      localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
+watch([selectedSet, selectedPlan], async ([si, planSet]) => {
+  if (si === null || planSet.size === 0) return
+  for (const pi of planSet) {
+    const plan = PLAN_SETS[si]?.plans[pi]
+    if (!plan) continue
+    const missing = plan.cities
+      .filter(c => c.name !== undefined)
+      .map(c => c.name)
+      .filter(name => !cityData[name])
+    for (const name of missing) {
+      const result = await geocodeCity(name)
+      if (result) {
+        cityData[name] = result  // reactive → activePlans が自動再計算される
+        const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
+        cache[name] = result
+        localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
+      }
     }
   }
 })
@@ -373,14 +378,18 @@ function isVisited(propName) {
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
   if (!propName) return '#4a7a9b'
-  if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color
+  for (const plan of activePlans.value) {
+    if (plan.countries.includes(propName)) return plan.color
+  }
   return isVisited(propName) ? '#e63946' : '#4a7a9b'
 }
 
 // 国のホバー色
 function getCountryHover(propName) {
   if (!propName) return '#6a9ab8'
-  if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color + 'cc'
+  for (const plan of activePlans.value) {
+    if (plan.countries.includes(propName)) return plan.color + 'cc'
+  }
   return isVisited(propName) ? '#ff6b6b' : '#6a9ab8'
 }
 
@@ -603,7 +612,7 @@ async function drawMap() {
     legPopup.visible = false
   })
 
-  if (currentPlan.value) updatePlanOverlay()
+  if (activePlans.value.length > 0) updatePlanOverlay()
 }
 
 // プランオーバーレイ（アーク + 都市マーカー）の更新
@@ -620,10 +629,15 @@ function updatePlanOverlay() {
 
   // 既存オーバーレイを削除
   overlayLayerGroup.clearLayers()
-  if (!currentPlan.value) return
+  if (activePlans.value.length === 0) return
 
-  const plan = currentPlan.value
+  for (const plan of activePlans.value) {
+    drawPlanLayer(plan)
+  }
+}
 
+// 1プラン分のアーク・マーカーを描画
+function drawPlanLayer(plan) {
   // 各区間の移動情報ルックアップ
   const arcTransports = []
   {
@@ -676,7 +690,7 @@ function updatePlanOverlay() {
     })
   }
 
-  // 都市マーカー（-360°/0°/+360° の3コピーで東西パン時も表示）
+  // 都市マーカー（-360°/0°/+360° の3コピー）
   const seen = new Set()
   cities.forEach(city => {
     const key = city.coords.join(',')
@@ -684,8 +698,7 @@ function updatePlanOverlay() {
     seen.add(key)
     const [lng, lat] = city.coords
 
-    const offsets = [-360, 0, 360]
-    offsets.forEach(offset => {
+    ;[-360, 0, 360].forEach(offset => {
       const marker = L.circleMarker([lat, lng + offset], {
         radius: 5,
         fillColor: plan.color,
@@ -718,24 +731,25 @@ function updatePlanOverlay() {
 
 function selectSetFromDD(si) {
   selectedSet.value = si
-  selectedPlan.value = null
+  selectedPlan.value = new Set()
   dropdownOpen.value = false
 }
 
 function selectSet(i) {
   selectedSet.value = selectedSet.value === i ? null : i
-  selectedPlan.value = null
+  selectedPlan.value = new Set()
 }
 
-function selectPlanFromDD(si, pi) {
-  selectedSet.value = si
-  selectedPlan.value = pi
-  dropdownOpen.value = false
+function togglePlanTab(j) {
+  const next = new Set(selectedPlan.value)
+  if (next.has(j)) next.delete(j)
+  else next.add(j)
+  selectedPlan.value = next
 }
 
 function clearPlan() {
   selectedSet.value = null
-  selectedPlan.value = null
+  selectedPlan.value = new Set()
   dropdownOpen.value = false
 }
 
@@ -755,7 +769,7 @@ function reloadApp() { window.location.reload() }
 
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
-watch(currentPlan, () => updatePlanOverlay())
+watch(activePlans, () => updatePlanOverlay())
 
 onMounted(async () => {
   await loadCSV()
