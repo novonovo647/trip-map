@@ -87,33 +87,45 @@
           </div>
           <div class="set-detail-body">
             <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
-              <h3 :style="{ color: plan.color }">{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</h3>
-              <!-- 都市ごとのタイムライン -->
-              <div class="city-stops">
-                <div v-for="(city, k) in plan.cities" :key="k" class="city-stop">
-                  <!-- 移動手段（2都市目以降） -->
-                  <div v-if="k > 0" class="stop-leg">
-                    <span class="stop-leg-arrow">↓</span>
-                    <template v-if="city.transport">
-                      <a v-if="city.transportUrl" :href="city.transportUrl" target="_blank" rel="noopener" class="stop-leg-link">{{ city.transport }}</a>
-                      <span v-else class="stop-leg-text">{{ city.transport }}</span>
+              <h3 class="plan-detail-toggle" :style="{ color: plan.color }" @click="togglePlan(j)">
+                <span class="plan-toggle-icon">{{ openPlans[j] ? '▾' : '▸' }}</span>
+                {{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}
+              </h3>
+              <div v-show="openPlans[j]">
+                <!-- タイムライン: 都市 / 移動エントリー混在 -->
+                <div class="city-stops">
+                  <template v-for="(item, k) in plan.cities" :key="k">
+                    <!-- 移動エントリー -->
+                    <div v-if="item._type === 'transport'" class="stop-leg">
+                      <span class="stop-leg-arrow">↓</span>
+                      <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
+                      <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
+                      <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
+                    </div>
+                    <!-- 都市エントリー（直前が都市なら矢印を補完） -->
+                    <template v-else>
+                      <div v-if="k > 0 && plan.cities[k-1]._type === 'city'" class="stop-leg">
+                        <span class="stop-leg-arrow">↓</span>
+                      </div>
+                      <div class="city-stop">
+                        <div class="stop-header">
+                          <span class="stop-name">{{ item.name }}</span>
+                          <span v-if="item.nights" class="stop-nights">{{ item.nights }}泊</span>
+                          <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
+                        </div>
+                        <ul v-if="item.spots && item.spots.length" class="stop-spots">
+                          <li v-for="(spot, si) in item.spots" :key="si">
+                            <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
+                            <span v-else>{{ spot.name }}</span>
+                            <span v-if="spot.memo" class="spot-memo spot-memo-block" v-html="memoHtml(spot.memo)"></span>
+                          </li>
+                        </ul>
+                      </div>
                     </template>
-                  </div>
-                  <!-- 都市名 + 宿泊数 -->
-                  <div class="stop-header">
-                    <span class="stop-name">{{ city.name }}</span>
-                    <span v-if="city.nights" class="stop-nights">{{ city.nights }}泊</span>
-                  </div>
-                  <!-- 観光地 -->
-                  <ul v-if="city.spots && city.spots.length" class="stop-spots">
-                    <li v-for="(spot, si) in city.spots" :key="si">
-                      <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
-                      <span v-else>{{ spot.name }}</span>
-                    </li>
-                  </ul>
+                  </template>
                 </div>
+                <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
               </div>
-              <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
             </div>
           </div>
         </div>
@@ -202,30 +214,42 @@ let zoomBehavior = null
 let resizeObserver = null
 let redrawTimer = null
 
+function memoHtml(text) {
+  if (!text) return ''
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/¥n|\\n|\n/g, '<br>')
+}
+
 function resolvePlan(plan) {
   if (!plan) return null
-  const cities = plan.cities
+  const items = plan.cities
     .map(c => {
-      const name    = typeof c === 'string' ? c : c.name
-      const extra   = typeof c === 'object' ? c : {}
-      const coords  = cityData[name]?.coords ?? null
+      if (c.name === undefined) {
+        // 移動エントリー（transport のみ）
+        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null }
+      }
+      const coords = cityData[c.name]?.coords ?? null
       if (!coords) return null
       return {
-        name,
+        _type: 'city',
+        name:   c.name,
         coords,
-        transport:    extra.transport    ?? null,
-        transportUrl: extra.transportUrl ?? null,
-        nights:       extra.nights       ?? null,
-        spots:        extra.spots        ?? [],
+        nights: c.nights ?? null,
+        memo:   c.memo   ?? null,
+        spots:  c.spots  ?? [],
       }
     })
     .filter(Boolean)
   const countries = [...new Set(
-    plan.cities
-      .map(c => cityData[typeof c === 'string' ? c : c.name]?.country)
+    items
+      .filter(i => i._type === 'city')
+      .map(i => cityData[i.name]?.country)
       .filter(Boolean)
   )]
-  return { ...plan, cities, countries }
+  return { ...plan, cities: items, countries }
 }
 
 const currentPlan = computed(() => {
@@ -239,7 +263,8 @@ watch([selectedSet, selectedPlan], async ([si, pi]) => {
   const plan = PLAN_SETS[si]?.plans[pi]
   if (!plan) return
   const missing = plan.cities
-    .map(c => typeof c === 'string' ? c : c.name)
+    .filter(c => c.name !== undefined)
+    .map(c => c.name)
     .filter(name => !cityData[name])
   if (!missing.length) return
   for (const name of missing) {
@@ -543,7 +568,7 @@ function updatePlanOverlay() {
   const overlay = gRef.append('g').attr('class', 'plan-overlay')
 
   // ── アーク描画 ─────────────────────────────────────────────
-  const cities = plan.cities
+  const cities = plan.cities.filter(i => i._type === 'city')
   for (let i = 0; i < cities.length - 1; i++) {
     const from = cities[i].coords
     const to   = cities[i + 1].coords
@@ -613,6 +638,16 @@ function clearPlan() {
   selectedSet.value = null
   selectedPlan.value = null
   dropdownOpen.value = false
+}
+
+const openPlans = ref([])
+
+watch(modalSetIndex, (val) => {
+  if (val !== null) openPlans.value = PLAN_SETS[val].plans.map(() => true)
+})
+
+function togglePlan(j) {
+  openPlans.value[j] = !openPlans.value[j]
 }
 
 watch(currentPlan, () => updatePlanOverlay())
@@ -1029,11 +1064,30 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: calc(82vh - 60px);
 }
 
 .plan-detail {
   border-left: 3px solid;
   padding-left: 12px;
+}
+
+.plan-detail-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 4px;
+}
+
+.plan-detail-toggle:hover {
+  opacity: 0.85;
+}
+
+.plan-toggle-icon {
+  font-size: 0.75rem;
+  flex-shrink: 0;
 }
 
 .plan-detail h3 {
@@ -1127,6 +1181,27 @@ onUnmounted(() => {
 
 .stop-spots a:hover {
   color: #a8d4f0;
+}
+
+.stop-memo {
+  font-size: 0.7rem;
+  color: #888;
+  font-style: italic;
+  margin: 1px 0;
+  padding: 0;
+}
+
+.spot-memo {
+  font-size: 0.68rem;
+  color: #777;
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.spot-memo-block {
+  display: block;
+  margin-left: 0;
+  margin-top: 1px;
 }
 
 .plan-countries {
