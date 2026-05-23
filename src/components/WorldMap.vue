@@ -21,8 +21,8 @@
     <!-- 統計: 渡航済み / 未渡航（クリックで一覧） -->
     <div class="stats">
       <span class="stat-visited" @click="listMode = 'visited'">渡航済み: <strong>{{ totalCount }}</strong></span>
-      <span class="stat-sep">&nbsp;/&nbsp;未渡航:&nbsp;</span>
-      <span class="stat-unvisited" @click="listMode = 'unvisited'"><strong class="total-features">{{ totalFeatures }}</strong></span>
+      <span class="stat-sep">&nbsp;/&nbsp;</span>
+      <span class="stat-unvisited" @click="listMode = 'unvisited'">未渡航: <strong class="total-features">{{ totalFeatures }}</strong></span>
       <span class="stat-unit">&nbsp;か国・地域</span>
     </div>
     <!-- プランDDリスト + コース表示 -->
@@ -371,16 +371,16 @@ function isVisited(propName) {
 
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
-  if (!propName) return '#2d4a6a'
+  if (!propName) return '#3a6644'
   if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color
-  return isVisited(propName) ? '#e63946' : '#2d4a6a'
+  return isVisited(propName) ? '#e63946' : '#3a6644'
 }
 
 // 国のホバー色
 function getCountryHover(propName) {
-  if (!propName) return '#4a7a9b'
+  if (!propName) return '#4d8a5a'
   if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color + 'cc'
-  return isVisited(propName) ? '#ff6b6b' : '#4a7a9b'
+  return isVisited(propName) ? '#ff6b6b' : '#4d8a5a'
 }
 
 function getJaName(propName) {
