@@ -8,7 +8,17 @@
         "color": "#f5a623",
         "cities": [
           "東京",
-          "イスタンブール",
+          {
+            "name": "飛行機（自主手配）",
+            "transport": "TK 198（成田 → カッパドキア",
+            "transportUrl": "https://www.turkishairlines.com/",
+            "nights": 3,
+            "spots": [
+              { "name": "ブルーモスク（スルタンアフメト・モスク）", "url": "https://ja.wikipedia.org/wiki/%E3%82%B9%E3%83%AB%E3%82%BF%E3%83%B3%E3%82%A2%E3%83%95%E3%83%A1%E3%83%83%E3%83%881%E4%B8%96%E3%83%A2%E3%82%B9%E3%82%AF" },
+              { "name": "トプカプ宮殿", "url": "https://ja.wikipedia.org/wiki/%E3%83%88%E3%83%97%E3%82%AB%E3%83%97%E5%AE%AE%E6%AE%BF" },
+              { "name": "グランドバザール", "url": "https://ja.wikipedia.org/wiki/%E3%82%B0%E3%83%A9%E3%83%B3%E3%83%89%E3%83%90%E3%82%B6%E3%83%BC%E3%83%AB_(%E3%82%A4%E3%82%B9%E3%82%BF%E3%83%B3%E3%83%96%E3%83%BC%E3%83%AB)" }
+            ]
+          },
           "カッパドキア",
           "イスタンブール",
           "ソフィア",

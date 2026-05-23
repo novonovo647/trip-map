@@ -88,10 +88,30 @@
           <div class="set-detail-body">
             <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
               <h3 :style="{ color: plan.color }">{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</h3>
-              <div class="plan-route">
-                <template v-for="(city, k) in plan.cities" :key="k">
-                  <span v-if="k > 0" class="route-arrow"> → </span>{{ city.name }}
-                </template>
+              <!-- 都市ごとのタイムライン -->
+              <div class="city-stops">
+                <div v-for="(city, k) in plan.cities" :key="k" class="city-stop">
+                  <!-- 移動手段（2都市目以降） -->
+                  <div v-if="k > 0" class="stop-leg">
+                    <span class="stop-leg-arrow">↓</span>
+                    <template v-if="city.transport">
+                      <a v-if="city.transportUrl" :href="city.transportUrl" target="_blank" rel="noopener" class="stop-leg-link">{{ city.transport }}</a>
+                      <span v-else class="stop-leg-text">{{ city.transport }}</span>
+                    </template>
+                  </div>
+                  <!-- 都市名 + 宿泊数 -->
+                  <div class="stop-header">
+                    <span class="stop-name">{{ city.name }}</span>
+                    <span v-if="city.nights" class="stop-nights">{{ city.nights }}泊</span>
+                  </div>
+                  <!-- 観光地 -->
+                  <ul v-if="city.spots && city.spots.length" class="stop-spots">
+                    <li v-for="(spot, si) in city.spots" :key="si">
+                      <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
+                      <span v-else>{{ spot.name }}</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
               <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
             </div>
@@ -112,12 +132,12 @@ import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
 import Papa from 'papaparse'
-import csvRaw from '../assets/country_list.csv?raw'
+import csvRaw from '../data/country_list.csv?raw'
 import worldData from '../assets/countries-10m.json'
 import rewind from 'geojson-rewind'
 import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
-import PLAN_SETS from '../assets/plan_sets.json'
+import PLAN_SETS from '../data/plan_sets.json'
 import CITIES_MASTER from '../assets/cities_master.json'
 
 // Nominatim 国名 → Natural Earth 国名 補正テーブル
@@ -185,10 +205,25 @@ let redrawTimer = null
 function resolvePlan(plan) {
   if (!plan) return null
   const cities = plan.cities
-    .map(name => ({ name, coords: cityData[name]?.coords ?? null }))
-    .filter(c => c.coords !== null)
+    .map(c => {
+      const name    = typeof c === 'string' ? c : c.name
+      const extra   = typeof c === 'object' ? c : {}
+      const coords  = cityData[name]?.coords ?? null
+      if (!coords) return null
+      return {
+        name,
+        coords,
+        transport:    extra.transport    ?? null,
+        transportUrl: extra.transportUrl ?? null,
+        nights:       extra.nights       ?? null,
+        spots:        extra.spots        ?? [],
+      }
+    })
+    .filter(Boolean)
   const countries = [...new Set(
-    plan.cities.map(name => cityData[name]?.country).filter(Boolean)
+    plan.cities
+      .map(c => cityData[typeof c === 'string' ? c : c.name]?.country)
+      .filter(Boolean)
   )]
   return { ...plan, cities, countries }
 }
@@ -203,7 +238,9 @@ watch([selectedSet, selectedPlan], async ([si, pi]) => {
   if (si === null || pi === null) return
   const plan = PLAN_SETS[si]?.plans[pi]
   if (!plan) return
-  const missing = plan.cities.filter(name => !cityData[name])
+  const missing = plan.cities
+    .map(c => typeof c === 'string' ? c : c.name)
+    .filter(name => !cityData[name])
   if (!missing.length) return
   for (const name of missing) {
     const result = await geocodeCity(name)
@@ -1001,18 +1038,95 @@ onUnmounted(() => {
 
 .plan-detail h3 {
   font-size: 0.9rem;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 
-.plan-route {
-  font-size: 0.82rem;
-  color: #ccc;
-  line-height: 1.7;
-  margin-bottom: 4px;
+/* 都市タイムライン */
+.city-stops {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
 }
 
-.route-arrow {
+.city-stop {
+  display: flex;
+  flex-direction: column;
+}
+
+.stop-leg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 2px 4px;
+}
+
+.stop-leg-arrow {
   color: #4a7a9b;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.stop-leg-link,
+.stop-leg-text {
+  font-size: 0.72rem;
+  color: #7ab3d4;
+}
+
+.stop-leg-link {
+  text-decoration: underline dotted;
+}
+
+.stop-leg-link:hover {
+  color: #a8d4f0;
+}
+
+.stop-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.stop-name {
+  font-size: 0.82rem;
+  color: #ddd;
+  font-weight: 500;
+}
+
+.stop-nights {
+  font-size: 0.7rem;
+  color: #7ab3d4;
+  background: rgba(74, 122, 155, 0.18);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.stop-spots {
+  list-style: none;
+  margin: 2px 0 2px 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stop-spots li {
+  font-size: 0.72rem;
+  color: #aaa;
+}
+
+.stop-spots li::before {
+  content: '📍 ';
+  font-size: 0.65rem;
+}
+
+.stop-spots a {
+  color: #7ab3d4;
+  text-decoration: underline dotted;
+}
+
+.stop-spots a:hover {
+  color: #a8d4f0;
 }
 
 .plan-countries {
