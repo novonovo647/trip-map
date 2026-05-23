@@ -644,31 +644,35 @@ function updatePlanOverlay() {
 
   const cities = plan.cities.filter(i => i._type === 'city')
 
-  // アーク描画（大圏弧）
+  // アーク描画（大圏弧）-360°/0°/+360° の3コピーで東西パン時も表示
   for (let i = 0; i < cities.length - 1; i++) {
     const from = cities[i].coords   // [lng, lat]
     const to   = cities[i + 1].coords
     const t    = arcTransports[i] ?? null
 
     const pts = unwrapLongitudes(geodesicPoints(from, to))
-    const arc = L.polyline(pts, {
-      color: plan.color,
-      weight: 1.5,
-      dashArray: '6,3',
-      opacity: 0.85,
-    }).addTo(overlayLayerGroup)
 
-    arc.on('click', (e) => {
-      L.DomEvent.stopPropagation(e)
-      cityPopup.visible  = false
-      legPopup.visible   = true
-      legPopup.x         = e.originalEvent.clientX + 14
-      legPopup.y         = e.originalEvent.clientY - 10
-      legPopup.from      = cities[i].name
-      legPopup.to        = cities[i + 1].name
-      legPopup.transport = t?.transport ?? null
-      legPopup.url       = t?.url       ?? null
-      legPopup.memo      = t?.memo      ?? null
+    ;[-360, 0, 360].forEach(offset => {
+      const shiftedPts = pts.map(([lat, lng]) => [lat, lng + offset])
+      const arc = L.polyline(shiftedPts, {
+        color: plan.color,
+        weight: 1.5,
+        dashArray: '6,3',
+        opacity: 0.85,
+      }).addTo(overlayLayerGroup)
+
+      arc.on('click', (e) => {
+        L.DomEvent.stopPropagation(e)
+        cityPopup.visible  = false
+        legPopup.visible   = true
+        legPopup.x         = e.originalEvent.clientX + 14
+        legPopup.y         = e.originalEvent.clientY - 10
+        legPopup.from      = cities[i].name
+        legPopup.to        = cities[i + 1].name
+        legPopup.transport = t?.transport ?? null
+        legPopup.url       = t?.url       ?? null
+        legPopup.memo      = t?.memo      ?? null
+      })
     })
   }
 
