@@ -371,16 +371,16 @@ function isVisited(propName) {
 
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
-  if (!propName) return '#3a6644'
+  if (!propName) return '#4a7a9b'
   if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color
-  return isVisited(propName) ? '#e63946' : '#3a6644'
+  return isVisited(propName) ? '#e63946' : '#4a7a9b'
 }
 
 // 国のホバー色
 function getCountryHover(propName) {
-  if (!propName) return '#4d8a5a'
+  if (!propName) return '#6a9ab8'
   if (currentPlan.value?.countries.includes(propName)) return currentPlan.value.color + 'cc'
-  return isVisited(propName) ? '#ff6b6b' : '#4d8a5a'
+  return isVisited(propName) ? '#ff6b6b' : '#6a9ab8'
 }
 
 function getJaName(propName) {
@@ -935,7 +935,7 @@ onUnmounted(() => {
 }
 .plan-bar-label {
   font-size: 0.8rem;
-  color: #4a7a9b;
+  color: #666;
   white-space: nowrap;
 }
 .plan-selector-wrap { position: relative; }
