@@ -55,6 +55,40 @@
     <div v-if="tooltip.visible" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
       {{ tooltip.text }}
     </div>
+    <!-- 都市ポップアップ (プラン選択中にマーカークリック) -->
+    <Teleport to="body">
+      <div v-if="cityPopup.visible" class="city-popup" :style="{ left: cityPopup.x + 'px', top: cityPopup.y + 'px' }" @click.stop>
+        <div class="city-popup-header">
+          <span class="city-popup-name">{{ cityPopup.name }}</span>
+          <span v-if="cityPopup.nights" class="city-popup-nights">{{ cityPopup.nights }}泊</span>
+          <button class="city-popup-close" @click="cityPopup.visible = false">✕</button>
+        </div>
+        <div v-if="cityPopup.memo" class="city-popup-memo" v-html="memoHtml(cityPopup.memo)"></div>
+        <ul v-if="cityPopup.spots && cityPopup.spots.length" class="city-popup-spots">
+          <li v-for="(spot, si) in cityPopup.spots" :key="si">
+            <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
+            <span v-else>{{ spot.name }}</span>
+            <span v-if="spot.memo" class="city-popup-spot-memo" v-html="memoHtml(spot.memo)"></span>
+          </li>
+        </ul>
+        <p v-if="!cityPopup.memo && (!cityPopup.spots || !cityPopup.spots.length)" class="city-popup-empty">詳細情報なし</p>
+      </div>
+    </Teleport>
+    <!-- 移動ポップアップ (アーククリック) -->
+    <Teleport to="body">
+      <div v-if="legPopup.visible" class="city-popup leg-popup" :style="{ left: legPopup.x + 'px', top: legPopup.y + 'px' }" @click.stop>
+        <div class="city-popup-header">
+          <span class="city-popup-name leg-popup-route">{{ legPopup.from }} → {{ legPopup.to }}</span>
+          <button class="city-popup-close" @click="legPopup.visible = false">✕</button>
+        </div>
+        <div v-if="legPopup.transport" class="leg-popup-transport">
+          <a v-if="legPopup.url" :href="legPopup.url" target="_blank" rel="noopener" class="leg-popup-link">{{ legPopup.transport }}</a>
+          <span v-else>{{ legPopup.transport }}</span>
+        </div>
+        <div v-if="legPopup.memo" class="city-popup-memo" v-html="memoHtml(legPopup.memo)"></div>
+        <p v-if="!legPopup.transport && !legPopup.memo" class="city-popup-empty">移動情報なし</p>
+      </div>
+    </Teleport>
     <!-- 国一覧モーダル -->
     <Teleport to="body">
       <div v-if="listMode" class="list-overlay" @click.self="listMode = null">
@@ -200,6 +234,8 @@ const allFeatureNames = ref([])  // drawMap() 後に全フィーチャー名を�
 const totalCount = ref(0)    // 英語名なし含む全件数（テンプレートで表示）
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
+const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [] })
+const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
 const selectedSet   = ref(null) // null | セットindex
 const selectedPlan  = ref(null) // null | プランindex（セット内）
@@ -551,11 +587,15 @@ async function drawMap() {
 
   svg.call(zoomBehavior)
     .on('dblclick.zoom', null) // ダブルクリックズームを無効化
+    .on('click', () => { cityPopup.visible = false; legPopup.visible = false })
 }
 
 // プランオーバーレイ（アーク + 都市マーカー）の更新
 function updatePlanOverlay() {
   if (!gRef || !projRef || !pathRef) return
+
+  // ポップアップを閉じる
+  cityPopup.visible = false
 
   // 国の色を更新
   gRef.selectAll('.country').attr('fill', d => getCountryFill(d.properties?.name || ''))
@@ -567,34 +607,83 @@ function updatePlanOverlay() {
   const plan = currentPlan.value
   const overlay = gRef.append('g').attr('class', 'plan-overlay')
 
+  // ── 各区間の移動情報ルックアップ ─────────────────────────────
+  const arcTransports = []
+  {
+    let cityIdx = -1
+    let lastTransport = null
+    for (const item of plan.cities) {
+      if (item._type === 'transport') {
+        lastTransport = item
+      } else if (item._type === 'city') {
+        if (cityIdx >= 0) {
+          arcTransports.push(lastTransport)
+          lastTransport = null
+        }
+        cityIdx++
+      }
+    }
+  }
+
   // ── アーク描画 ─────────────────────────────────────────────
   const cities = plan.cities.filter(i => i._type === 'city')
   for (let i = 0; i < cities.length - 1; i++) {
     const from = cities[i].coords
     const to   = cities[i + 1].coords
+    const t    = arcTransports[i] ?? null
+
+    // クリックハンドラ（全区間に表示）
+    function handleArcClick(event) {
+      event.stopPropagation()
+      cityPopup.visible = false
+      legPopup.visible  = true
+      legPopup.x = event.clientX + 14
+      legPopup.y = event.clientY - 10
+      legPopup.from      = cities[i].name
+      legPopup.to        = cities[i + 1].name
+      legPopup.transport = t?.transport ?? null
+      legPopup.url       = t?.url       ?? null
+      legPopup.memo      = t?.memo      ?? null
+    }
+
     // 日付変更線をまたぐか判定（経度差 > 180°）
     const lonDiff = Math.abs(from[0] - to[0])
     if (lonDiff > 180) {
       // 日付変更線をまたぐ場合は 2 分割して描画
       const sign = from[0] > 0 ? 1 : -1
       const lat  = (from[1] + to[1]) / 2
-      overlay.append('path').datum({ type: 'LineString', coordinates: [from, [sign * 180, lat]] })
+      const seg1 = { type: 'LineString', coordinates: [from, [sign * 180, lat]] }
+      const seg2 = { type: 'LineString', coordinates: [[-sign * 180, lat], to] }
+      // 視覚パス
+      overlay.append('path').datum(seg1)
         .attr('d', pathRef).attr('fill', 'none')
         .attr('stroke', plan.color).attr('stroke-width', 1.0)
         .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
-      overlay.append('path').datum({ type: 'LineString', coordinates: [[-sign * 180, lat], to] })
+      overlay.append('path').datum(seg2)
         .attr('d', pathRef).attr('fill', 'none')
         .attr('stroke', plan.color).attr('stroke-width', 1.0)
         .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
+      // ヒットエリア
+      overlay.append('path').datum(seg1)
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', 'transparent').attr('stroke-width', 10)
+        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
+      overlay.append('path').datum(seg2)
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', 'transparent').attr('stroke-width', 10)
+        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
     } else {
-      overlay.append('path')
-        .datum({ type: 'LineString', coordinates: [from, to] })
-        .attr('d', pathRef)
-        .attr('fill', 'none')
-        .attr('stroke', plan.color)
-        .attr('stroke-width', 1.0)
-        .attr('stroke-dasharray', '6,3')
-        .attr('opacity', 0.85)
+      const seg = { type: 'LineString', coordinates: [from, to] }
+      // 視覚パス
+      overlay.append('path').datum(seg)
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', plan.color).attr('stroke-width', 1.0)
+        .attr('stroke-dasharray', '6,3').attr('opacity', 0.85)
+      // ヒットエリア
+      overlay.append('path').datum(seg)
+        .attr('d', pathRef).attr('fill', 'none')
+        .attr('stroke', 'transparent').attr('stroke-width', 10)
+        .style('pointer-events', 'stroke').style('cursor', 'pointer').on('click', handleArcClick)
     }
   }
 
@@ -607,8 +696,20 @@ function updatePlanOverlay() {
     const pt = projRef(city.coords)
     if (!pt) return
     overlay.append('circle')
-      .attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 4)
+      .attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 5)
       .attr('fill', plan.color).attr('stroke', '#fff').attr('stroke-width', 1)
+      .style('cursor', 'pointer')
+      .on('click', function(event) {
+        event.stopPropagation()
+        legPopup.visible  = false
+        cityPopup.visible = true
+        cityPopup.x = event.clientX + 14
+        cityPopup.y = event.clientY - 10
+        cityPopup.name = city.name
+        cityPopup.nights = city.nights
+        cityPopup.memo = city.memo
+        cityPopup.spots = city.spots
+      })
     overlay.append('text')
       .attr('x', pt[0] + 6).attr('y', pt[1] - 4)
       .attr('fill', '#fff').attr('font-size', '7px')
@@ -960,6 +1061,98 @@ onUnmounted(() => {
   white-space: nowrap;
   z-index: 100;
 }
+
+/* 都市ポップアップ */
+.city-popup {
+  position: fixed;
+  background: #1a2d40;
+  border: 1px solid #4a7a9b;
+  border-radius: 8px;
+  padding: 10px 14px 12px;
+  min-width: 180px;
+  max-width: 280px;
+  z-index: 150;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  color: #e0e0e0;
+  font-size: 0.85rem;
+}
+.city-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+.city-popup-name {
+  font-weight: bold;
+  font-size: 0.95rem;
+}
+.city-popup-nights {
+  color: #a0b4c8;
+  font-size: 0.78rem;
+  background: rgba(255,255,255,0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.city-popup-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #7a9bb8;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.city-popup-close:hover { color: #fff; }
+.city-popup-memo {
+  color: #b0bec8;
+  font-size: 0.78rem;
+  font-style: italic;
+  margin-bottom: 7px;
+  line-height: 1.5;
+}
+.city-popup-spots {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.city-popup-spots li { list-style: disc; }
+.city-popup-spots a {
+  color: #7ab8d8;
+  text-decoration: none;
+}
+.city-popup-spots a:hover { text-decoration: underline; }
+.city-popup-spot-memo {
+  display: block;
+  color: #8a96a4;
+  font-size: 0.72rem;
+  font-style: italic;
+  margin-top: 1px;
+  line-height: 1.4;
+}
+.city-popup-empty {
+  color: #607080;
+  font-size: 0.78rem;
+  margin: 0;
+  font-style: italic;
+}
+/* 移動ポップアップ固有 */
+.leg-popup-route {
+  font-size: 0.88rem;
+}
+.leg-popup-transport {
+  font-size: 0.85rem;
+  color: #e0e0e0;
+  margin-bottom: 4px;
+}
+.leg-popup-link {
+  color: #7ab8d8;
+  text-decoration: none;
+}
+.leg-popup-link:hover { text-decoration: underline; }
 
 /* 国一覧モーダル */
 .list-overlay {
