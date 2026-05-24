@@ -1,8 +1,9 @@
 // Service Worker: stale-while-revalidate + 更新バナー通知
-const CACHE = 'trip-v2'
+const CACHE = 'trip-v3'
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.add('./')))
+  // no-store でキャッシュをバイパスして最新 HTML を取得
+  e.waitUntil(caches.open(CACHE).then(c => c.add(new Request('./', { cache: 'no-store' }))))
   self.skipWaiting()
 })
 
@@ -11,7 +12,11 @@ self.addEventListener('activate', e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
-  )
+      .then(async () => {
+        // 旧 SW から新 SW へ更新されたとき、すべての開いているページを自動リロードする
+        const all = await self.clients.matchAll({ type: 'window' })
+        all.forEach(c => c.postMessage({ type: 'SW_UPDATED' }))
+      })
 })
 
 self.addEventListener('fetch', e => {
