@@ -241,7 +241,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, setDoc, onSnapshot } from 'firebase/firestore'
-import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
@@ -926,11 +926,7 @@ const ALLOWED_EMAILS = ['user1@example.com', 'user2@example.com']
 
 async function signIn() {
   loginError.value = ''
-  const result = await signInWithPopup(auth, new GoogleAuthProvider())
-  if (!ALLOWED_EMAILS.includes(result.user.email)) {
-    await fbSignOut(auth)
-    loginError.value = 'このアカウントはアクセス権がありません'
-  }
+  await signInWithRedirect(auth, new GoogleAuthProvider())
 }
 
 async function handleSignOut() {
@@ -1050,6 +1046,14 @@ watch(activePlans, () => updatePlanOverlay())
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
+  // リダイレクトログイン後の結果を処理してホワイトリストチェック
+  try {
+    const result = await getRedirectResult(auth)
+    if (result?.user && !ALLOWED_EMAILS.includes(result.user.email)) {
+      await fbSignOut(auth)
+      loginError.value = 'このアカウントはアクセス権がありません'
+    }
+  } catch {}
   // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
   unsubAuth = onAuthStateChanged(auth, user => {
     currentUser.value = user
