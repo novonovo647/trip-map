@@ -1143,7 +1143,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: max(6px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  padding: 6px 12px 4px;
   box-sizing: border-box;
   overflow: hidden;
 }
