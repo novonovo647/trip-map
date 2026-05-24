@@ -1,5 +1,5 @@
 // Service Worker: stale-while-revalidate + 更新バナー通知
-const CACHE = 'trip-v1'
+const CACHE = 'trip-v2'
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.add('./')))
@@ -28,13 +28,13 @@ self.addEventListener('fetch', e => {
         const fresh = await fetch(e.request, { cache: 'no-cache' })
         if (!fresh.ok) return
 
-        const oldTag = cached?.headers.get('etag') || cached?.headers.get('last-modified')
-        const newTag = fresh.headers.get('etag')   || fresh.headers.get('last-modified')
+        const freshText  = await fresh.clone().text()
+        const cachedText = cached ? await cached.clone().text() : ''
 
-        if (!oldTag || (newTag && oldTag !== newTag)) {
+        if (freshText !== cachedText) {
           await cache.put('./', fresh)
-          if (oldTag) {
-            // 既存キャッシュと異なる → 更新通知
+          if (cachedText) {
+            // 既存キャッシュと内容が異なる → 更新通知
             const clients = await self.clients.matchAll({ type: 'window' })
             clients.forEach(c => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
           }
