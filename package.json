@@ -9,10 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "d3": "^7.9.0",
     "firebase": "^12.13.0",
     "geojson-rewind": "^0.3.1",
-    "leaflet": "^1.9.4",
     "maplibre-gl": "^5.24.0",
     "papaparse": "^5.4.1",
     "topojson-client": "^3.1.0",
@@ -22,5 +20,8 @@
     "@vitejs/plugin-vue": "^5.2.0",
     "vite": "^6.0.0",
     "vite-plugin-singlefile": "^2.3.3"
+  },
+  "overrides": {
+    "minimist": "^1.2.8"
   }
 }
