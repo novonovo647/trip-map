@@ -32,18 +32,18 @@
             @click="selectSet(si)"
           >
             <span class="pe-set-tab-name">{{ ps.setName || '（名称なし）' }}</span>
-            <button class="pe-icon-btn del sm" @click.stop="deleteSet(si)" title="このコースを削除">🗑</button>
+            <button class="pe-icon-btn del sm" @click.stop="deleteSet(si)" title="このプランを削除">🗑</button>
           </div>
-          <button class="pe-add-set-btn" @click="addSet">＋ コース追加</button>
+          <button class="pe-add-set-btn" @click="addSet">＋ プラン追加</button>
         </div>
 
         <!-- コンテンツ: 選択中のコースを編集 -->
         <div class="pe-content" v-if="activeSet !== null && data[activeSet]">
 
-          <!-- コース名 -->
+          <!-- プラン名 -->
           <div class="pe-field-row">
-            <label class="pe-label">コース名</label>
-            <input class="pe-input pe-input-wide" v-model="data[activeSet].setName" placeholder="コース名を入力" />
+            <label class="pe-label">プラン名</label>
+            <input class="pe-input pe-input-wide" v-model="data[activeSet].setName" placeholder="プラン名を入力" />
           </div>
 
           <!-- プラン一覧 -->
@@ -58,7 +58,7 @@
                     class="pe-plan-name"
                     v-model="plan.label"
                     @click.stop
-                    placeholder="プラン名"
+                    placeholder="コース名"
                   />
                   <input
                     type="color"
@@ -80,7 +80,7 @@
                   <div class="pe-plan-actions" @click.stop>
                     <button class="pe-icon-btn sm" @click="movePlan(pi, -1)" :disabled="pi === 0" title="上へ">↑</button>
                     <button class="pe-icon-btn sm" @click="movePlan(pi, 1)" :disabled="pi === data[activeSet].plans.length - 1" title="下へ">↓</button>
-                    <button class="pe-icon-btn del sm" @click="deletePlan(pi)" title="プランを削除">🗑</button>
+                    <button class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
                   </div>
                 </div>
 
@@ -150,11 +150,11 @@
             </template>
           </div>
 
-          <button class="pe-add-btn add-plan-btn" @click="addPlan">＋ プランを追加</button>
+          <button class="pe-add-btn add-plan-btn" @click="addPlan">＋ コースを追加</button>
         </div>
 
         <div v-else class="pe-no-set">
-          コースを選択または追加してください
+          プランを選択または追加してください
         </div>
       </div>
     </div>
@@ -295,7 +295,7 @@ function ensureSpots(item) {
 
 // ── コース CRUD ─────────────────────────────────
 function addSet() {
-  data.push({ setName: '新しいコース', plans: [] })
+  data.push({ setName: '新しいプラン', plans: [] })
   activeSet.value = data.length - 1
   openPlan.value  = {}
   openSpots.value = {}
@@ -315,7 +315,7 @@ function addPlan() {
   if (activeSet.value === null) return
   const pi = data[activeSet.value].plans.length
   data[activeSet.value].plans.push({
-    label:  '新しいプラン',
+    label:  '新しいコース',
     nights: null,
     color:  '#4a90e2',
     cities: [],

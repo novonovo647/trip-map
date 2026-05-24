@@ -53,7 +53,7 @@
     <!-- プランDDリスト + コース表示 -->
     <div class="plan-bar">
       <div class="plan-select-row">
-        <span class="plan-bar-label">コース:</span>
+        <span class="plan-bar-label">プラン:</span>
         <div class="plan-selector-wrap">
           <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
             <span>{{ selectedSet !== null ? PLAN_SETS[selectedSet].setName : '選択' }}</span>
