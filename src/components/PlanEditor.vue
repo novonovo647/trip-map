@@ -1,19 +1,18 @@
 <template>
-  <div class="pe-overlay" @click.self="$emit('cancel')">
+  <div class="pe-overlay" @click.self="handleClose">
     <div class="pe-panel">
 
       <!-- ヘッダー -->
       <div class="pe-header">
         <h2>✏ プランを編集</h2>
         <div class="pe-header-actions">
-          <button class="pe-save-btn" :disabled="saving" @click="handleSave">
-            {{ saving ? '保存中…' : '💾 GitHubに保存' }}
-          </button>
-          <button class="pe-cancel-btn" @click="$emit('cancel')">キャンセル</button>
+          <span class="pe-status" :class="saveStatus">
+            {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : '✓ 保存済み' }}
+          </span>
+          <button class="pe-cancel-btn" @click="handleClose">閉じる</button>
         </div>
       </div>
-      <div v-if="error" class="pe-error">{{ error }}</div>
-      <p class="pe-note">保存後 GitHub にコミットされます。ページリロードで反映されます。</p>
+      <div v-if="saveError" class="pe-error">{{ saveError }}</div>
 
       <!-- ボディ: サイドバー + コンテンツ -->
       <div class="pe-body">
@@ -158,18 +157,85 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { db } from '../firebase.js'
+import { setDoc, doc } from 'firebase/firestore'
 
 const props = defineProps({
   initialData: { type: Array, required: true },
-  saving:      { type: Boolean, default: false },
-  error:       { type: String,  default: '' },
 })
 
-const emit = defineEmits(['save', 'cancel'])
+const emit = defineEmits(['close'])
+
+// ── 自動保存 ──────────────────────────────────────
+const saveStatus = ref('saved')  // 'saved' | 'saving' | 'error'
+const saveError  = ref('')
+let   autoSaveTimer = null
+let   initialized   = false
 
 // 元データを破壊しないようディープコピーで作業
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
+
+watch(data, () => {
+  if (!initialized) return
+  saveStatus.value = 'saving'
+  clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => doSave(false), 1500)
+}, { deep: true })
+
+// watch登録後に初期化（初期値で自動保存しない）
+setTimeout(() => { initialized = true }, 0)
+
+onBeforeUnmount(() => clearTimeout(autoSaveTimer))
+
+function buildCleanedData() {
+  const cleaned = JSON.parse(JSON.stringify(data))
+  cleaned.forEach(ps => {
+    ps.plans.forEach(plan => {
+      if (!plan.nights && plan.nights !== 0) plan.nights = null
+      plan.cities = plan.cities.filter(item => {
+        if ('name' in item) return item.name?.trim()
+        return item.transport?.trim()
+      })
+      plan.cities.forEach(item => {
+        if ('name' in item) {
+          if (!item.nights && item.nights !== 0) delete item.nights
+          if (!item.memo?.trim())                delete item.memo
+          if (item.spots) {
+            item.spots = item.spots.filter(s => s.name?.trim())
+            item.spots.forEach(s => {
+              if (!s.url?.trim())  delete s.url
+              if (!s.memo?.trim()) delete s.memo
+            })
+            if (item.spots.length === 0) delete item.spots
+          }
+        } else {
+          if (!item.url?.trim())  delete item.url
+          if (!item.memo?.trim()) delete item.memo
+        }
+      })
+    })
+  })
+  return cleaned
+}
+
+async function doSave(shouldClose) {
+  saveStatus.value = 'saving'
+  saveError.value  = ''
+  try {
+    await setDoc(doc(db, 'tripdata', 'plans'), { sets: buildCleanedData() })
+    saveStatus.value = 'saved'
+    if (shouldClose) emit('close')
+  } catch (e) {
+    saveStatus.value = 'error'
+    saveError.value  = e.message
+  }
+}
+
+function handleClose() {
+  clearTimeout(autoSaveTimer)
+  doSave(true)
+}
 
 const activeSet = ref(data.length > 0 ? 0 : null)
 const openPlan  = ref({})   // { [pi]: boolean }
@@ -270,38 +336,7 @@ function deleteSpot(cityItem, spi) {
   cityItem.spots.splice(spi, 1)
 }
 
-// ── 保存 ────────────────────────────────────────
-function handleSave() {
-  const cleaned = JSON.parse(JSON.stringify(data))
-  cleaned.forEach(ps => {
-    ps.plans.forEach(plan => {
-      if (!plan.nights && plan.nights !== 0) plan.nights = null
-      // 空の都市名・移動手段を除去
-      plan.cities = plan.cities.filter(item => {
-        if ('name' in item) return item.name?.trim()
-        return item.transport?.trim()
-      })
-      plan.cities.forEach(item => {
-        if ('name' in item) {
-          if (!item.nights && item.nights !== 0) delete item.nights
-          if (!item.memo?.trim())                delete item.memo
-          if (item.spots) {
-            item.spots = item.spots.filter(s => s.name?.trim())
-            item.spots.forEach(s => {
-              if (!s.url?.trim())  delete s.url
-              if (!s.memo?.trim()) delete s.memo
-            })
-            if (item.spots.length === 0) delete item.spots
-          }
-        } else {
-          if (!item.url?.trim())  delete item.url
-          if (!item.memo?.trim()) delete item.memo
-        }
-      })
-    })
-  })
-  emit('save', cleaned)
-}
+
 </script>
 
 <style scoped>
@@ -348,19 +383,15 @@ function handleSave() {
   align-items: center;
   gap: 6px;
 }
-.pe-save-btn {
-  background: #1a3a1a;
-  border: 1px solid #3a7a3a;
-  color: #7ad47a;
+.pe-status {
+  font-size: 0.78rem;
+  padding: 4px 10px;
   border-radius: 6px;
-  padding: 4px 14px;
-  font-size: 0.8rem;
-  cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s;
 }
-.pe-save-btn:hover:not(:disabled) { background: #2a5a2a; }
-.pe-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pe-status.saved  { color: #7ad47a; }
+.pe-status.saving { color: #aaa; }
+.pe-status.error  { color: #ff8888; }
 .pe-cancel-btn {
   background: #2a2a2a;
   border: 1px solid #555;
@@ -380,15 +411,7 @@ function handleSave() {
   padding: 6px 16px;
   flex-shrink: 0;
 }
-.pe-note {
-  font-size: 0.72rem;
-  color: #556;
-  font-style: italic;
-  margin: 0;
-  padding: 4px 20px;
-  flex-shrink: 0;
-  border-bottom: 1px solid #1e3352;
-}
+
 
 /* ── ボディ ───────────────────────────────────── */
 .pe-body {

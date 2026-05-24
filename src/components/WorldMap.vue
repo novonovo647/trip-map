@@ -166,10 +166,7 @@
       <PlanEditor
         v-if="showPlanEditor"
         :initialData="PLAN_SETS"
-        :saving="planUISaving"
-        :error="planUIError"
-        @save="handlePlanEditorSave"
-        @cancel="showPlanEditor = false"
+        @close="showPlanEditor = false"
       />
     </Teleport>
 
@@ -991,27 +988,10 @@ async function saveCountryList() {
 
 // ─── プラン UI 編集 ─────────────────────────────────────────
 const showPlanEditor  = ref(false)
-const planUISaving    = ref(false)
-const planUIError     = ref('')
 
 function openPlanEditor() {
-  planUIError.value   = ''
   modalSetIndex.value = null
   showPlanEditor.value = true
-}
-
-async function handlePlanEditorSave(newData) {
-  planUISaving.value = true
-  planUIError.value  = ''
-  try {
-    await setDoc(doc(db, 'tripdata', 'plans'), { sets: newData })
-    // onSnapshot が自動的に PLAN_SETS を更新する
-    showPlanEditor.value = false
-  } catch (e) {
-    planUIError.value = e.message
-  } finally {
-    planUISaving.value = false
-  }
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
