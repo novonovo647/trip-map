@@ -13,9 +13,12 @@ self.addEventListener('activate', e => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
       .then(async () => {
-        // 旧 SW から新 SW へ更新されたとき、すべての開いているページを自動リロードする
+        // 旧 SW から新 SW へ更新されたとき、すべての開いているページを強制リロード
+        // client.navigate() は SW 側から直接実行するため、古いページ JS に依存しない
         const all = await self.clients.matchAll({ type: 'window' })
-        all.forEach(c => c.postMessage({ type: 'SW_UPDATED' }))
+        await Promise.all(all.map(c =>
+          c.navigate(c.url).catch(() => c.postMessage({ type: 'SW_UPDATED' }))
+        ))
       })
 })
 
@@ -39,9 +42,11 @@ self.addEventListener('fetch', e => {
         if (freshText !== cachedText) {
           await cache.put('./', fresh)
           if (cachedText) {
-            // 既存キャッシュと内容が異なる → 更新通知
+            // HTML が変わった → キャッシュ更新後に全クライアントをリロード
             const clients = await self.clients.matchAll({ type: 'window' })
-            clients.forEach(c => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
+            await Promise.all(clients.map(c =>
+              c.navigate(c.url).catch(() => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
+            ))
           }
         }
       } catch { /* ネットワーク不可時は無視 */ }
