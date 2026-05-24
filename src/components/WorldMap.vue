@@ -28,7 +28,7 @@
     </div>
     <!-- トップバー: タイトル（リセット） + バーガーメニュー -->
     <div class="top-bar">
-      <h1 class="title-reset" @click="resetZoom" title="クリックでリセット">🌍 海外渡航マップ</h1>
+      <h1 class="title-reset" @click="resetZoom" title="クリックでリセット">🌍 海外旅行マップ</h1>
       <div class="burger-wrap">
         <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
         <div v-if="burgerOpen" class="burger-menu">
@@ -513,7 +513,7 @@ function geodesicPoints(from, to, n = 60) {
   return pts
 }
 
-// 日付変更線をまたぐ経度ジャンプを除去（Leaflet 用）
+// 日付変更線をまたぐ経度ジャンプを除去
 function unwrapLongitudes(pts) {
   const result = [pts[0]]
   for (let i = 1; i < pts.length; i++) {
