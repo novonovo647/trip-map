@@ -124,7 +124,7 @@
     </Teleport>
     <!-- 国一覧モーダル -->
     <Teleport to="body">
-      <div v-if="listMode" class="list-overlay" @click.self="listMode = null; countryEditMode = false">
+      <div v-if="listMode" class="list-overlay" @click.self="closeList">
         <div class="list-panel">
           <div class="list-header">
             <h2>
@@ -136,9 +136,16 @@
             </h2>
             <div class="list-header-actions">
               <button v-if="currentUser && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
-              <button v-if="countryEditMode" class="gh-save-btn" :disabled="countryEditSaving" @click="saveCountryList">{{ countryEditSaving ? '保存中…' : '💾 保存' }}</button>
-              <button v-if="countryEditMode" class="cancel-edit-btn" @click="countryEditMode = false">キャンセル</button>
-              <button class="close-btn" @click="listMode = null; countryEditMode = false">✕</button>
+              <template v-if="countryEditMode">
+                <span v-if="countryEditStatus !== 'idle'" class="ce-status" :class="countryEditStatus">
+                  {{ countryEditStatus === 'saving' ? '保存中…' : countryEditStatus === 'error' ? '⚠ 保存失敗' : countryEditStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
+                </span>
+                <template v-if="countryEditStatus === 'external' && countryEditorInfo">
+                  <img v-if="countryEditorInfo.photo" :src="countryEditorInfo.photo" class="ce-editor-avatar" :title="countryEditorInfo.name" referrerpolicy="no-referrer" />
+                  <span v-else class="ce-editor-name">{{ countryEditorInfo.name }}</span>
+                </template>
+              </template>
+              <button class="close-btn" @click="closeList">✕</button>
             </div>
           </div>
           <div v-if="countryEditMode && countryEditError" class="edit-error">{{ countryEditError }}</div>
@@ -943,17 +950,21 @@ const visitedVersion    = ref(0)     // groupedList の強制再計算トリガ�
 const countryEditMode   = ref(false)
 const countryEditSet    = ref(new Set())
 const countryEditOrig   = ref(new Set())
-const countryEditSaving = ref(false)
+const countryEditStatus = ref('idle')  // 'idle' | 'saving' | 'saved' | 'error' | 'external'
+const countryEditorInfo = ref(null)    // { name, photo }
 const countryEditError  = ref('')
+let   countryEditTimer  = null
 
 const countryEditAdded   = computed(() => { let n = 0; for (const en of countryEditSet.value) { if (!countryEditOrig.value.has(en)) n++ }; return n })
 const countryEditRemoved = computed(() => { let n = 0; for (const en of countryEditOrig.value) { if (!countryEditSet.value.has(en)) n++ }; return n })
 
 function enterCountryEditMode() {
-  countryEditSet.value  = new Set(visitedSet)
-  countryEditOrig.value = new Set(visitedSet)
-  countryEditError.value = ''
-  countryEditMode.value  = true
+  countryEditSet.value    = new Set(visitedSet)
+  countryEditOrig.value   = new Set(visitedSet)
+  countryEditError.value  = ''
+  countryEditStatus.value = 'idle'
+  countryEditorInfo.value = null
+  countryEditMode.value   = true
 }
 
 function toggleCountryEdit(enName, jaName) {
@@ -961,10 +972,28 @@ function toggleCountryEdit(enName, jaName) {
   if (next.has(enName)) { next.delete(enName) }
   else { next.add(enName); if (jaName && !jaMapData[enName]) jaMapData[enName] = jaName }
   countryEditSet.value = next
+  // オートセーブ（1.5秒デバウンス）
+  countryEditStatus.value = 'saving'
+  clearTimeout(countryEditTimer)
+  countryEditTimer = setTimeout(() => doSaveCountryList(), 1500)
 }
 
-async function saveCountryList() {
-  countryEditSaving.value = true
+// リスト閉じる（編集中なら保留分を即時保存）
+function closeList() {
+  if (countryEditMode.value && countryEditTimer !== null) {
+    clearTimeout(countryEditTimer)
+    countryEditTimer = null
+    doSaveCountryList()
+  }
+  countryEditMode.value   = false
+  countryEditStatus.value = 'idle'
+  countryEditorInfo.value = null
+  listMode.value          = null
+}
+
+async function doSaveCountryList() {
+  countryEditTimer        = null
+  countryEditStatus.value = 'saving'
   countryEditError.value  = ''
   try {
     const lines = ['名称,英語名称']
@@ -973,18 +1002,16 @@ async function saveCountryList() {
       lines.push(`${ja},${en}`)
     }
     const csv = lines.join('\n') + '\n'
-    await setDoc(doc(db, 'tripdata', 'countries'), { csv })
-    // in-memory 更新
-    visitedSet = new Set(countryEditSet.value)
-    totalCount.value = visitedSet.size
-    visitedVersion.value++
-    mapInstance?.getSource('countries')?.setData(buildCountriesData())
-    countryEditMode.value  = false
-    countryEditOrig.value  = new Set(visitedSet)
+    await setDoc(doc(db, 'tripdata', 'countries'), {
+      csv,
+      savedBy:     auth.currentUser?.uid          ?? '',
+      editorName:  auth.currentUser?.displayName  ?? '',
+      editorPhoto: auth.currentUser?.photoURL     ?? '',
+    })
+    countryEditStatus.value = 'saved'
   } catch (e) {
-    countryEditError.value = e.message
-  } finally {
-    countryEditSaving.value = false
+    countryEditStatus.value = 'error'
+    countryEditError.value  = e.message
   }
 }
 
@@ -1024,14 +1051,28 @@ function startFirestoreListeners() {
   // 渡航済み国データ
   unsubCountries = onSnapshot(doc(db, 'tripdata', 'countries'), async (snap) => {
     if (snap.exists()) {
-      visitedSet       = new Set()
-      jaMapData        = {}
-      totalCount.value = 0
-      loadCSV(snap.data().csv)
+      const d = snap.data()
+      // 編集中に他ユーザーの変更が来た場合: editSet を更新してアイコン表示
+      if (countryEditMode.value && d.savedBy && d.savedBy !== auth.currentUser?.uid) {
+        clearTimeout(countryEditTimer)
+        countryEditTimer = null
+        visitedSet       = new Set()
+        jaMapData        = {}
+        totalCount.value = 0
+        loadCSV(d.csv)
+        countryEditSet.value    = new Set(visitedSet)
+        countryEditorInfo.value = { name: d.editorName || '他のユーザー', photo: d.editorPhoto || null }
+        countryEditStatus.value = 'external'
+        setTimeout(() => { if (countryEditStatus.value === 'external') countryEditStatus.value = 'saved' }, 3000)
+      } else {
+        visitedSet       = new Set()
+        jaMapData        = {}
+        totalCount.value = 0
+        loadCSV(d.csv)
+      }
       visitedVersion.value++
       if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
     } else {
-      // 初回: 静的データでシード
       await setDoc(doc(db, 'tripdata', 'countries'), { csv: csvRaw })
     }
   })
@@ -1632,20 +1673,28 @@ onUnmounted(() => {
 }
 .edit-mode-btn:hover { background: #2d4a6a; }
 
-/* GitHub 保存ボタン */
-.gh-save-btn {
-  background: #1a3a1a;
-  border: 1px solid #3a7a3a;
-  color: #7ad47a;
+/* GitHub 保存ボタン → autosave に変更: ce-status で代替 */
+.ce-status {
+  font-size: 0.78rem;
+  padding: 4px 10px;
   border-radius: 6px;
-  padding: 3px 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s;
 }
-.gh-save-btn:hover:not(:disabled) { background: #2a5a2a; }
-.gh-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ce-status.saved    { color: #7ad47a; }
+.ce-status.saving   { color: #aaa; }
+.ce-status.error    { color: #ff8888; }
+.ce-status.external { color: #7ab8d4; }
+.ce-editor-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #7ab8d4;
+  object-fit: cover;
+}
+.ce-editor-name {
+  font-size: 0.75rem;
+  color: #7ab8d4;
+}
 
 .cancel-edit-btn {
   background: #2a2a2a;
