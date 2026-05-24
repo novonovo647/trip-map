@@ -513,9 +513,12 @@ function deleteSpot(cityItem, spi) {
   background: rgba(0, 0, 0, 0.72);
   z-index: 300;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .pe-panel {
@@ -523,7 +526,7 @@ function deleteSpot(cityItem, spi) {
   border: 1px solid #4a7a9b;
   border-radius: 12px;
   width: min(1080px, 96vw);
-  height: min(88vh, 840px);
+  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
