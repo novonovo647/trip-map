@@ -104,11 +104,36 @@ function deleteSet(si) {
 const draggingIdx = ref(null)
 const dragOverIdx = ref(null)
 
+let _ghost = null
+function _startGhost(el, e) {
+  if (_ghost) { _ghost.remove(); _ghost = null }
+  const rect = el.getBoundingClientRect()
+  _ghost = el.cloneNode(true)
+  Object.assign(_ghost.style, {
+    position: 'fixed', top: rect.top + 'px', left: rect.left + 'px',
+    width: rect.width + 'px', pointerEvents: 'none', opacity: '0.85',
+    zIndex: '9999', boxShadow: '0 6px 24px rgba(0,0,0,0.55)',
+    borderRadius: '8px', cursor: 'grabbing', margin: '0',
+  })
+  document.body.appendChild(_ghost)
+  return { dx: e.clientX - rect.left, dy: e.clientY - rect.top }
+}
+function _moveGhost(e, o) {
+  if (!_ghost) return
+  _ghost.style.top  = (e.clientY - o.dy) + 'px'
+  _ghost.style.left = (e.clientX - o.dx) + 'px'
+}
+function _endGhost() { if (_ghost) { _ghost.remove(); _ghost = null } }
+
 function startDrag(e, idx) {
   draggingIdx.value = idx
   dragOverIdx.value = idx
+  e.target.releasePointerCapture?.(e.pointerId)
+  const itemEl = e.target.closest('[data-idx]')
+  const offset = itemEl ? _startGhost(itemEl, e) : null
 
   const handleMove = (ev) => {
+    if (offset) _moveGhost(ev, offset)
     const dragEl = document.querySelector('.pm-item.pm-dragging')
     if (dragEl) dragEl.style.visibility = 'hidden'
     const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-idx]')
@@ -119,6 +144,7 @@ function startDrag(e, idx) {
   }
 
   const handleUp = () => {
+    _endGhost()
     document.removeEventListener('pointermove', handleMove)
     document.removeEventListener('pointerup', handleUp)
     const from = draggingIdx.value
@@ -127,7 +153,7 @@ function startDrag(e, idx) {
     dragOverIdx.value = null
     if (from === null || to === null || from === to) return
     const [item] = data.splice(from, 1)
-    data.splice(from < to ? to - 1 : to, 0, item)
+    data.splice(to, 0, item)
   }
 
   document.addEventListener('pointermove', handleMove)
