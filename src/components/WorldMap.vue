@@ -54,6 +54,7 @@
     <div class="plan-bar">
       <div class="plan-select-row">
         <span class="plan-bar-label">プラン:</span>
+        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✏</button>
         <div class="plan-selector-wrap">
           <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
             <span>{{ selectedSet !== null ? PLAN_SETS[selectedSet].setName : '選択' }}</span>
@@ -69,8 +70,7 @@
             >{{ s.setName }}</div>
           </div>
         </div>
-        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">✏</button>
-        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">メニュー</button>
+        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">編集</button>
       </div>
       <!-- コース一覧（常時描画・高さ予約でマップが動かない） -->
       <div class="course-list">
