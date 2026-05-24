@@ -12,5 +12,9 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'UPDATE_AVAILABLE') {
       window.dispatchEvent(new Event('app-update-available'))
     }
+    if (e.data?.type === 'SW_UPDATED') {
+      // SW 自体が更新されたときは即座にリロードして新バージョンを適用
+      window.location.reload()
+    }
   })
 }
