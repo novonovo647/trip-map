@@ -241,7 +241,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, setDoc, onSnapshot } from 'firebase/firestore'
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
@@ -1046,16 +1046,16 @@ watch(activePlans, () => updatePlanOverlay())
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
-  // リダイレクトログイン後の結果を処理してホワイトリストチェック
-  try {
-    const result = await getRedirectResult(auth)
-    if (result?.user && !ALLOWED_EMAILS.includes(result.user.email)) {
+  // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
+  unsubAuth = onAuthStateChanged(auth, async user => {
+    // ホワイトリスト外のアカウントはログアウト
+    if (user && !ALLOWED_EMAILS.includes(user.email)) {
       await fbSignOut(auth)
       loginError.value = 'このアカウントはアクセス権がありません'
+      currentUser.value = null
+      authReady.value   = true
+      return
     }
-  } catch {}
-  // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
-  unsubAuth = onAuthStateChanged(auth, user => {
     currentUser.value = user
     authReady.value   = true
     if (user) {
