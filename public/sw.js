@@ -1,5 +1,5 @@
 // Service Worker: stale-while-revalidate + 更新バナー通知
-const CACHE = 'trip-v3'
+const CACHE = 'trip-v4'
 
 self.addEventListener('install', e => {
   // no-store でキャッシュをバイパスして最新 HTML を取得
