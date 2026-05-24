@@ -327,6 +327,28 @@ function toggleSpots(pi, ci) {
 }
 
 // ── ポインタ D&D ハンドラ ─────────────────────────────────
+let _ghost = null
+
+function _startGhost(el, e) {
+  if (_ghost) { _ghost.remove(); _ghost = null }
+  const rect = el.getBoundingClientRect()
+  _ghost = el.cloneNode(true)
+  Object.assign(_ghost.style, {
+    position: 'fixed', top: rect.top + 'px', left: rect.left + 'px',
+    width: rect.width + 'px', pointerEvents: 'none', opacity: '0.85',
+    zIndex: '9999', boxShadow: '0 6px 24px rgba(0,0,0,0.55)',
+    borderRadius: '6px', cursor: 'grabbing', margin: '0',
+  })
+  document.body.appendChild(_ghost)
+  return { dx: e.clientX - rect.left, dy: e.clientY - rect.top }
+}
+function _moveGhost(e, o) {
+  if (!_ghost) return
+  _ghost.style.top  = (e.clientY - o.dy) + 'px'
+  _ghost.style.left = (e.clientX - o.dx) + 'px'
+}
+function _endGhost() { if (_ghost) { _ghost.remove(); _ghost = null } }
+
 function _hitEl(ev, selector) {
   const dragging = document.querySelectorAll('.dnd-dragging')
   dragging.forEach(el => { el.style.visibility = 'hidden' })
@@ -338,13 +360,19 @@ function _hitEl(ev, selector) {
 function startPlanDrag(e, pi) {
   dragPlanInfo.value     = { pi }
   dragOverPlanInfo.value = { pi }
+  e.target.releasePointerCapture?.(e.pointerId)
+  const planEl = e.target.closest('[data-item-type="plan"]')
+  const barEl  = planEl?.querySelector('.pe-plan-bar') ?? planEl
+  const offset = barEl ? _startGhost(barEl, e) : null
   const onMove = (ev) => {
+    if (offset) _moveGhost(ev, offset)
     const el = _hitEl(ev, '[data-item-type="plan"]')
     if (!el) return
     const newPi = parseInt(el.dataset.pi)
     if (!isNaN(newPi)) dragOverPlanInfo.value = { pi: newPi }
   }
   const onUp = () => {
+    _endGhost()
     document.removeEventListener('pointermove', onMove)
     document.removeEventListener('pointerup', onUp)
     const from = dragPlanInfo.value?.pi
@@ -354,7 +382,7 @@ function startPlanDrag(e, pi) {
     if (from == null || to == null || from === to) return
     const plans = data[activeSet.value].plans
     const [item] = plans.splice(from, 1)
-    plans.splice(from < to ? to - 1 : to, 0, item)
+    plans.splice(to, 0, item)
   }
   document.addEventListener('pointermove', onMove)
   document.addEventListener('pointerup', onUp)
@@ -363,7 +391,11 @@ function startPlanDrag(e, pi) {
 function startCityDrag(e, pi, ci) {
   dragCityInfo.value     = { pi, ci }
   dragOverCityInfo.value = { pi, ci }
+  e.target.releasePointerCapture?.(e.pointerId)
+  const cardEl = e.target.closest('[data-item-type="city"]')
+  const offset = cardEl ? _startGhost(cardEl, e) : null
   const onMove = (ev) => {
+    if (offset) _moveGhost(ev, offset)
     const el = _hitEl(ev, '[data-item-type="city"]')
     if (!el) return
     const elPi = parseInt(el.dataset.pi)
@@ -371,6 +403,7 @@ function startCityDrag(e, pi, ci) {
     if (elPi === pi && !isNaN(elCi)) dragOverCityInfo.value = { pi, ci: elCi }
   }
   const onUp = () => {
+    _endGhost()
     document.removeEventListener('pointermove', onMove)
     document.removeEventListener('pointerup', onUp)
     const src = dragCityInfo.value
@@ -380,7 +413,7 @@ function startCityDrag(e, pi, ci) {
     if (!src || !tgt || src.ci === tgt.ci) return
     const cities = data[activeSet.value].plans[pi].cities
     const [item] = cities.splice(src.ci, 1)
-    cities.splice(src.ci < tgt.ci ? tgt.ci - 1 : tgt.ci, 0, item)
+    cities.splice(tgt.ci, 0, item)
   }
   document.addEventListener('pointermove', onMove)
   document.addEventListener('pointerup', onUp)

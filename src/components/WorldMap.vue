@@ -69,8 +69,8 @@
             >{{ s.setName }}</div>
           </div>
         </div>
-        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
-        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✏</button>
+        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">✏</button>
+        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">メニュー</button>
       </div>
       <!-- コース一覧（常時描画・高さ予約でマップが動かない） -->
       <div class="course-list">
