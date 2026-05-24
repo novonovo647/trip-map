@@ -6,10 +6,15 @@
       <div class="pe-header">
         <h2>✏ プランを編集</h2>
         <div class="pe-header-actions">
-          <span class="pe-status" :class="saveStatus">
+          <span v-if="saveStatus !== 'idle'" class="pe-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
           </span>
-          <button class="pe-cancel-btn" @click="handleClose">閉じる</button>
+          <!-- 他ユーザーが編集中のアイコン -->
+          <template v-if="editorInfo && saveStatus === 'external'">
+            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pe-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
+            <span v-else class="pe-editor-name">{{ editorInfo.name }}</span>
+          </template>
+          <button class="pe-close-btn" @click="handleClose" title="閉じる">×</button>
         </div>
       </div>
       <div v-if="saveError" class="pe-error">{{ saveError }}</div>
@@ -164,12 +169,13 @@ import { setDoc, doc } from 'firebase/firestore'
 const props = defineProps({
   initialData:  { type: Array,  required: true },
   externalData: { type: Array,  default: null },
+  editorInfo:   { type: Object, default: null },   // { name, photo }
 })
 
 const emit = defineEmits(['close'])
 
 // ── 自動保存 ──────────────────────────────────────
-const saveStatus = ref('saved')  // 'saved' | 'saving' | 'error' | 'external'
+const saveStatus = ref('idle')   // 'idle' | 'saved' | 'saving' | 'error' | 'external'
 const saveError  = ref('')
 let   autoSaveTimer        = null
 let   initialized          = false
@@ -242,8 +248,10 @@ async function doSave(shouldClose) {
   saveError.value  = ''
   try {
     await setDoc(doc(db, 'tripdata', 'plans'), {
-      sets:    buildCleanedData(),
-      savedBy: auth.currentUser?.uid ?? '',
+      sets:        buildCleanedData(),
+      savedBy:     auth.currentUser?.uid          ?? '',
+      editorName:  auth.currentUser?.displayName  ?? '',
+      editorPhoto: auth.currentUser?.photoURL     ?? '',
     })
     saveStatus.value = 'saved'
     if (shouldClose) emit('close')
@@ -414,16 +422,28 @@ function deleteSpot(cityItem, spi) {
 .pe-status.saving   { color: #aaa; }
 .pe-status.error    { color: #ff8888; }
 .pe-status.external { color: #7ab8d4; }
-.pe-cancel-btn {
-  background: #2a2a2a;
-  border: 1px solid #555;
+.pe-close-btn {
+  background: transparent;
+  border: none;
   color: #aaa;
-  border-radius: 6px;
-  padding: 4px 12px;
-  font-size: 0.8rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 2px 6px;
   cursor: pointer;
+  border-radius: 4px;
 }
-.pe-cancel-btn:hover { background: #3a3a3a; }
+.pe-close-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.pe-editor-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #7ab8d4;
+  object-fit: cover;
+}
+.pe-editor-name {
+  font-size: 0.75rem;
+  color: #7ab8d4;
+}
 
 .pe-error {
   background: rgba(200, 50, 50, 0.15);
