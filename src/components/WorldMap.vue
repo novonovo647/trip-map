@@ -1,5 +1,14 @@
 <template>
   <div class="map-container">
+    <!-- ログインゲート -->
+    <div v-if="!currentUser" class="login-gate">
+      <div class="login-card">
+        <div class="login-logo">🌍</div>
+        <h1>海外渡航マップ</h1>
+        <p v-if="!authReady" class="login-loading">読み込み中…</p>
+        <button v-else class="login-btn" @click="signIn">🔐 Googleでログイン</button>
+      </div>
+    </div>
     <!-- 更新バナー -->
     <div v-if="showUpdateBanner" class="update-banner">
       <span>🔄 新しいバージョンが利用可能です</span>
@@ -898,7 +907,8 @@ function reloadApp() { window.location.reload() }
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
 // ─── 認証 ────────────────────────────────────────────
-const currentUser = ref(null)
+const currentUser  = ref(null)
+const authReady    = ref(false)
 
 async function signIn() {
   await signInWithPopup(auth, new GoogleAuthProvider())
@@ -1021,8 +1031,17 @@ watch(activePlans, () => updatePlanOverlay())
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
-  startFirestoreListeners()  // Firestore リアルタイムリスナー開始
-  unsubAuth = onAuthStateChanged(auth, user => { currentUser.value = user })
+  // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
+  unsubAuth = onAuthStateChanged(auth, user => {
+    currentUser.value = user
+    authReady.value   = true
+    if (user) {
+      startFirestoreListeners()
+    } else {
+      unsubPlans?.();     unsubPlans     = null
+      unsubCountries?.(); unsubCountries = null
+    }
+  })
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
@@ -1047,6 +1066,44 @@ onUnmounted(() => {
   box-sizing: border-box;
   overflow: hidden;
 }
+
+/* ログインゲート */
+.login-gate {
+  position: absolute;
+  inset: 0;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 40px;
+  background: #16213e;
+  border-radius: 16px;
+  border: 1px solid #0f3460;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  text-align: center;
+}
+.login-logo { font-size: 3rem; }
+.login-card h1 { margin: 0; font-size: 1.6rem; color: #e2e8f0; }
+.login-loading { color: #94a3b8; margin: 0; }
+.login-btn {
+  background: #4285f4;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.login-btn:hover { background: #3b78e7; }
 
 /* 更新バナー */
 .update-banner {
