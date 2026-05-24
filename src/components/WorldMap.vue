@@ -6,7 +6,10 @@
         <div class="login-logo">🌍</div>
         <h1>海外渡航マップ</h1>
         <p v-if="!authReady" class="login-loading">読み込み中…</p>
-        <button v-else class="login-btn" @click="signIn">🔐 Googleでログイン</button>
+        <template v-else>
+          <p v-if="loginError" class="login-error">{{ loginError }}</p>
+          <button class="login-btn" @click="signIn">🔐 Googleでログイン</button>
+        </template>
       </div>
     </div>
     <!-- 更新バナー -->
@@ -909,9 +912,17 @@ function onUpdateAvailable() { showUpdateBanner.value = true }
 // ─── 認証 ────────────────────────────────────────────
 const currentUser  = ref(null)
 const authReady    = ref(false)
+const loginError   = ref('')
+
+const ALLOWED_EMAILS = ['user1@example.com', 'user2@example.com']
 
 async function signIn() {
-  await signInWithPopup(auth, new GoogleAuthProvider())
+  loginError.value = ''
+  const result = await signInWithPopup(auth, new GoogleAuthProvider())
+  if (!ALLOWED_EMAILS.includes(result.user.email)) {
+    await fbSignOut(auth)
+    loginError.value = 'このアカウントはアクセス権がありません'
+  }
 }
 
 async function handleSignOut() {
@@ -1092,6 +1103,7 @@ onUnmounted(() => {
 .login-logo { font-size: 3rem; }
 .login-card h1 { margin: 0; font-size: 1.6rem; color: #e2e8f0; }
 .login-loading { color: #94a3b8; margin: 0; }
+.login-error   { color: #f87171; margin: 0 0 8px; font-size: 0.9rem; }
 .login-btn {
   background: #4285f4;
   color: #fff;
