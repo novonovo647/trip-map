@@ -18,3 +18,19 @@ if ('serviceWorker' in navigator) {
     }
   })
 }
+
+// SW に依存しない自前バージョンチェック
+// ビルド時刻が変わっていれば新バージョンが配信されているので自動リロード
+;(function startVersionWatch() {
+  const myBuild = __APP_BUILD__
+  async function check() {
+    try {
+      const r = await fetch('./version.json', { cache: 'no-store' })
+      if (!r.ok) return
+      const { v } = await r.json()
+      if (v !== myBuild) window.location.reload()
+    } catch { /* ネットワーク不可時は無視 */ }
+  }
+  setTimeout(check, 8000)
+  setInterval(check, 60000)
+})()
