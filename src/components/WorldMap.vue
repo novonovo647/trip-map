@@ -1,7 +1,7 @@
 <template>
   <div class="map-container">
-    <!-- ログインゲート -->
-    <div v-if="!currentUser" class="login-gate">
+    <!-- ログインゲート（開発モードではスキップ） -->
+    <div v-if="!currentUser && !isDev" class="login-gate">
       <div class="login-card">
         <div class="login-logo">🌍</div>
         <h1>海外旅行マップ</h1>
@@ -937,6 +937,7 @@ function reloadApp() { window.location.reload() }
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
 // ─── 認証 ────────────────────────────────────────────
+const isDev        = import.meta.env.DEV
 const currentUser  = ref(null)
 const authReady    = ref(false)
 const loginError   = ref('')
@@ -1142,7 +1143,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px 4px;
+  padding: max(6px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   box-sizing: border-box;
   overflow: hidden;
 }
