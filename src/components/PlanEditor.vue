@@ -4,7 +4,13 @@
 
       <!-- ヘッダー -->
       <div class="pe-header">
-        <h2>{{ singleSetIndex !== null ? `✏ ${data[singleSetIndex]?.setName || 'プランを編集'}` : '✏ プランを編集' }}</h2>
+        <input
+          v-if="singleSetIndex !== null"
+          class="pe-header-name-input"
+          v-model="data[singleSetIndex].setName"
+          placeholder="プラン名"
+        />
+        <h2 v-else>✏ プランを編集</h2>
         <div class="pe-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pe-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
@@ -41,7 +47,7 @@
         <div class="pe-content" v-if="activeSet !== null && data[activeSet]">
 
           <!-- プラン名 -->
-          <div class="pe-field-row">
+          <div class="pe-field-row" v-if="singleSetIndex === null">
             <label class="pe-label">プラン名</label>
             <input class="pe-input pe-input-wide" v-model="data[activeSet].setName" placeholder="プラン名を入力" />
           </div>
@@ -538,6 +544,21 @@ function deleteSpot(cityItem, spi) {
   font-size: 1.05rem;
   color: #e0e0e0;
 }
+.pe-header-name-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: #e0e0e0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 2px 4px;
+  min-width: 0;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.pe-header-name-input:hover,
+.pe-header-name-input:focus { border-bottom-color: #4a7a9b; }
 .pe-header-actions {
   display: flex;
   align-items: center;
