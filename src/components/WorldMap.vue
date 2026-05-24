@@ -1083,14 +1083,20 @@ async function loadRemoteData() {
 
 watch(activePlans, () => updatePlanOverlay())
 
+let pollingTimer = null
+
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
   loadRemoteData()   // バックグラウンドで最新データ取得（完了次第リアクティブに反映）
+  pollingTimer = setInterval(() => {
+    if (!showPlanEditor.value) loadRemoteData()  // 編集中は上書きしない
+  }, 30_000)
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
+  clearInterval(pollingTimer)
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })
