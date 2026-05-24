@@ -525,7 +525,7 @@ function deleteSpot(cityItem, spi) {
   background: #1a2d40;
   border: 1px solid #4a7a9b;
   border-radius: 12px;
-  width: min(1080px, 96vw);
+  width: min(860px, 92vw);
   height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
