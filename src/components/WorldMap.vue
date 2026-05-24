@@ -167,6 +167,7 @@
         v-if="showPlanEditor"
         :initialData="PLAN_SETS"
         :externalData="planExternalData"
+        :editorInfo="planEditorInfo"
         @close="showPlanEditor = false"
       />
     </Teleport>
@@ -988,11 +989,15 @@ async function saveCountryList() {
 }
 
 // ─── プラン UI 編集 ─────────────────────────────────────────
-const showPlanEditor  = ref(false)
+const showPlanEditor   = ref(false)
+const planExternalData = ref(null)   // 他ユーザーの更新をエディタに輸送
+const planEditorInfo   = ref(null)   // { name, photo }
 
 function openPlanEditor() {
-  modalSetIndex.value = null
-  showPlanEditor.value = true
+  planExternalData.value = null
+  planEditorInfo.value   = null
+  modalSetIndex.value    = null
+  showPlanEditor.value   = true
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
@@ -1009,6 +1014,7 @@ function startFirestoreListeners() {
       // エディタが開いていて、他ユーザーの保存ならエディタ内に反映
       if (showPlanEditor.value && d.savedBy !== auth.currentUser?.uid) {
         planExternalData.value = JSON.parse(JSON.stringify(d.sets))
+        planEditorInfo.value   = { name: d.editorName || '他のユーザー', photo: d.editorPhoto || null }
       }
     } else {
       // 初回: 静的データでシード
@@ -1018,14 +1024,12 @@ function startFirestoreListeners() {
   // 渡航済み国データ
   unsubCountries = onSnapshot(doc(db, 'tripdata', 'countries'), async (snap) => {
     if (snap.exists()) {
-      if (!countryEditMode.value) {
-        visitedSet       = new Set()
-        jaMapData        = {}
-        totalCount.value = 0
-        loadCSV(snap.data().csv)
-        visitedVersion.value++
-        if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
-      }
+      visitedSet       = new Set()
+      jaMapData        = {}
+      totalCount.value = 0
+      loadCSV(snap.data().csv)
+      visitedVersion.value++
+      if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
     } else {
       // 初回: 静的データでシード
       await setDoc(doc(db, 'tripdata', 'countries'), { csv: csvRaw })
@@ -1134,7 +1138,10 @@ onUnmounted(() => {
 
 /* 更新バナー */
 .update-banner {
+  position: fixed;
+  top: 0;
   width: 100%;
+  z-index: 10000;
   background: #2ecc71;
   color: #fff;
   display: flex;
