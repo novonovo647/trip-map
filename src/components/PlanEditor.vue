@@ -7,7 +7,7 @@
         <h2>✏ プランを編集</h2>
         <div class="pe-header-actions">
           <span class="pe-status" :class="saveStatus">
-            {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : '✓ 保存済み' }}
+            {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
           </span>
           <button class="pe-cancel-btn" @click="handleClose">閉じる</button>
         </div>
@@ -158,30 +158,48 @@
 
 <script setup>
 import { ref, reactive, watch, onBeforeUnmount } from 'vue'
-import { db } from '../firebase.js'
+import { db, auth } from '../firebase.js'
 import { setDoc, doc } from 'firebase/firestore'
 
 const props = defineProps({
-  initialData: { type: Array, required: true },
+  initialData:  { type: Array,  required: true },
+  externalData: { type: Array,  default: null },
 })
 
 const emit = defineEmits(['close'])
 
 // ── 自動保存 ──────────────────────────────────────
-const saveStatus = ref('saved')  // 'saved' | 'saving' | 'error'
+const saveStatus = ref('saved')  // 'saved' | 'saving' | 'error' | 'external'
 const saveError  = ref('')
-let   autoSaveTimer = null
-let   initialized   = false
+let   autoSaveTimer        = null
+let   initialized          = false
+let   isApplyingExternal   = false
 
 // 元データを破壊しないようディープコピーで作業
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
 
 watch(data, () => {
-  if (!initialized) return
+  if (!initialized || isApplyingExternal) return
   saveStatus.value = 'saving'
   clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => doSave(false), 1500)
 }, { deep: true })
+
+// 他ユーザーの更新をエディタに反映
+watch(() => props.externalData, (newVal) => {
+  if (!newVal) return
+  isApplyingExternal = true
+  clearTimeout(autoSaveTimer)
+  autoSaveTimer = null
+  data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
+  // activeSet が範囲外になった場合はリセット
+  if (activeSet.value !== null && activeSet.value >= data.length) {
+    activeSet.value = data.length > 0 ? 0 : null
+  }
+  setTimeout(() => { isApplyingExternal = false }, 0)
+  saveStatus.value = 'external'
+  setTimeout(() => { if (saveStatus.value === 'external') saveStatus.value = 'saved' }, 3000)
+})
 
 // watch登録後に初期化（初期値で自動保存しない）
 setTimeout(() => { initialized = true }, 0)
@@ -223,7 +241,10 @@ async function doSave(shouldClose) {
   saveStatus.value = 'saving'
   saveError.value  = ''
   try {
-    await setDoc(doc(db, 'tripdata', 'plans'), { sets: buildCleanedData() })
+    await setDoc(doc(db, 'tripdata', 'plans'), {
+      sets:    buildCleanedData(),
+      savedBy: auth.currentUser?.uid ?? '',
+    })
     saveStatus.value = 'saved'
     if (shouldClose) emit('close')
   } catch (e) {
@@ -389,9 +410,10 @@ function deleteSpot(cityItem, spi) {
   border-radius: 6px;
   white-space: nowrap;
 }
-.pe-status.saved  { color: #7ad47a; }
-.pe-status.saving { color: #aaa; }
-.pe-status.error  { color: #ff8888; }
+.pe-status.saved    { color: #7ad47a; }
+.pe-status.saving   { color: #aaa; }
+.pe-status.error    { color: #ff8888; }
+.pe-status.external { color: #7ab8d4; }
 .pe-cancel-btn {
   background: #2a2a2a;
   border: 1px solid #555;
