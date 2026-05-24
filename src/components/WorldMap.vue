@@ -13,7 +13,7 @@
         <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
         <div v-if="burgerOpen" class="burger-menu">
           <p class="burger-hint">スクロール: 拡大・縮小　ドラッグ: 移動</p>
-          <button class="burger-gh-btn" @click="showGhModal = true; burgerOpen = false">⚙ GitHub 設定</button>
+          <button class="burger-gh-btn" @click="burgerOpen = false">🔥 Firebase 接続済み</button>
           <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">地図データ: Natural Earth</a>
           <a href="https://ja.wikipedia.org/wiki/ISO_3166-1" target="_blank" rel="noopener">国・地域コード: ISO 3166-1</a>
         </div>
@@ -111,8 +111,8 @@
               </span>
             </h2>
             <div class="list-header-actions">
-              <button v-if="ghPat && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
-              <button v-if="countryEditMode" class="gh-save-btn" :disabled="countryEditSaving" @click="saveCountryList">{{ countryEditSaving ? '保存中…' : '💾 GitHubに保存' }}</button>
+              <button v-if="!countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
+              <button v-if="countryEditMode" class="gh-save-btn" :disabled="countryEditSaving" @click="saveCountryList">{{ countryEditSaving ? '保存中…' : '💾 保存' }}</button>
               <button v-if="countryEditMode" class="cancel-edit-btn" @click="countryEditMode = false">キャンセル</button>
               <button class="close-btn" @click="listMode = null; countryEditMode = false">✕</button>
             </div>
@@ -156,7 +156,7 @@
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
             <div class="list-header-actions">
-              <button v-if="ghPat" class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
+              <button class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
               <button class="close-btn" @click="modalSetIndex = null">✕</button>
             </div>
           </div>
@@ -207,37 +207,6 @@
       </div>
     </Teleport>
 
-    <!-- GitHub 設定モーダル -->
-    <Teleport to="body">
-      <div v-if="showGhModal" class="list-overlay" @click.self="showGhModal = false">
-        <div class="list-panel gh-settings-panel">
-          <div class="list-header">
-            <h2>⚙ GitHub 設定</h2>
-            <button class="close-btn" @click="showGhModal = false">✕</button>
-          </div>
-          <div class="gh-settings-body">
-            <label class="gh-label">Owner
-              <input v-model="ghOwner" class="gh-input" placeholder="yourname" />
-            </label>
-            <label class="gh-label">Repository
-              <input v-model="ghRepo" class="gh-input" placeholder="trip-map" />
-            </label>
-            <label class="gh-label">Branch
-              <input v-model="ghBranch" class="gh-input" placeholder="main" />
-            </label>
-            <label class="gh-label">Personal Access Token
-              <input type="password" v-model="ghPat" class="gh-input gh-pat" placeholder="ghp_…" autocomplete="off" />
-              <small class="gh-hint">fine-grained PAT で contents (read/write) 権限のみ付与を推奨</small>
-            </label>
-            <div class="gh-actions">
-              <button class="gh-save-btn" @click="saveGhSettings">保存</button>
-              <button class="cancel-edit-btn" @click="showGhModal = false">キャンセル</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <!-- ドロップダウン外クリックで閉じる -->
     <Teleport to="body">
       <div v-if="dropdownOpen || burgerOpen" class="click-outside" @click="dropdownOpen = false; burgerOpen = false"></div>
@@ -247,6 +216,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { db } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -921,48 +892,7 @@ function reloadApp() { window.location.reload() }
 
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
-// ─── GitHub 設定 ────────────────────────────────────────────
-const ghPat    = ref(localStorage.getItem('trip-gh-pat')    || '')
-const ghOwner  = ref(localStorage.getItem('trip-gh-owner')  || 'novonovo647')
-const ghRepo   = ref(localStorage.getItem('trip-gh-repo')   || 'trip-map')
-const ghBranch = ref(localStorage.getItem('trip-gh-branch') || 'main')
-const showGhModal = ref(false)
-
-function saveGhSettings() {
-  localStorage.setItem('trip-gh-pat',    ghPat.value)
-  localStorage.setItem('trip-gh-owner',  ghOwner.value)
-  localStorage.setItem('trip-gh-repo',   ghRepo.value)
-  localStorage.setItem('trip-gh-branch', ghBranch.value)
-  showGhModal.value = false
-}
-
-async function ghGetFile(path) {
-  const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}?ref=${ghBranch.value}`
-  const res  = await fetch(url, { headers: { Authorization: `token ${ghPat.value}`, Accept: 'application/vnd.github.v3+json' } })
-  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`)
-  const data = await res.json()
-  const raw  = atob(data.content.replace(/\n/g, ''))
-  const bytes = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-  return { content: new TextDecoder().decode(bytes), sha: data.sha }
-}
-
-async function ghPutFile(path, content, sha, message) {
-  const encoded = new TextEncoder().encode(content)
-  let b64 = ''
-  const chunk = 8192
-  for (let i = 0; i < encoded.length; i += chunk) {
-    b64 += String.fromCharCode(...encoded.slice(i, i + chunk))
-  }
-  const url  = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}`
-  const res  = await fetch(url, {
-    method: 'PUT',
-    headers: { Authorization: `token ${ghPat.value}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, content: btoa(b64), sha, branch: ghBranch.value }),
-  })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || `GitHub API ${res.status}`) }
-  return res.json()
-}
+// ─── GitHub 設定（削除済み: Firestore移行）────────────────────
 
 // ─── 渡航済み国 編集 ────────────────────────────────────────
 const visitedVersion    = ref(0)     // groupedList の強制再計算トリガー
@@ -999,8 +929,7 @@ async function saveCountryList() {
       lines.push(`${ja},${en}`)
     }
     const csv = lines.join('\n') + '\n'
-    const { sha } = await ghGetFile('src/data/country_list.csv')
-    await ghPutFile('src/data/country_list.csv', csv, sha, '渡航済み国リストを更新')
+    await setDoc(doc(db, 'tripdata', 'countries'), { csv })
     // in-memory 更新
     visitedSet = new Set(countryEditSet.value)
     totalCount.value = visitedSet.size
@@ -1030,11 +959,8 @@ async function handlePlanEditorSave(newData) {
   planUISaving.value = true
   planUIError.value  = ''
   try {
-    const json = JSON.stringify(newData, null, 2)
-    const { sha } = await ghGetFile('src/data/plan_sets.json')
-    await ghPutFile('src/data/plan_sets.json', json, sha, 'プランデータを更新')
-    // 保存成功 → インメモリを即時更新（リロード不要）
-    PLAN_SETS.value      = newData
+    await setDoc(doc(db, 'tripdata', 'plans'), { sets: newData })
+    // onSnapshot が自動的に PLAN_SETS を更新する
     showPlanEditor.value = false
   } catch (e) {
     planUIError.value = e.message
@@ -1043,60 +969,50 @@ async function handlePlanEditorSave(newData) {
   }
 }
 
-// ── 起動時にGitHubから最新データを取得 ─────────────────────
-async function loadRemoteData() {
-  try {
-    let planJson, csvText
-    if (ghPat.value) {
-      // PAT あり: GitHub API 経由（プライベート・パブリック両対応）
-      const [planResult, csvResult] = await Promise.all([
-        ghGetFile('src/data/plan_sets.json'),
-        ghGetFile('src/data/country_list.csv'),
-      ])
-      planJson = planResult.content
-      csvText  = csvResult.content
+// ── Firestore リアルタイムリスナー ──────────────────────────
+let unsubPlans     = null
+let unsubCountries = null
+
+function startFirestoreListeners() {
+  // プランデータ
+  unsubPlans = onSnapshot(doc(db, 'tripdata', 'plans'), async (snap) => {
+    if (snap.exists()) {
+      if (!showPlanEditor.value) PLAN_SETS.value = snap.data().sets
     } else {
-      // PAT なし: raw URL 経由（パブリックリポジトリのみ）
-      const base = `https://raw.githubusercontent.com/${ghOwner.value}/${ghRepo.value}/${ghBranch.value}`
-      const [planRes, csvRes] = await Promise.all([
-        fetch(`${base}/src/data/plan_sets.json`),
-        fetch(`${base}/src/data/country_list.csv`),
-      ])
-      if (!planRes.ok || !csvRes.ok) return
-      planJson = await planRes.text()
-      csvText  = await csvRes.text()
+      // 初回: 静的データでシード
+      await setDoc(doc(db, 'tripdata', 'plans'), { sets: planSetsStatic })
     }
-    // 渡航済みデータをリセットして再パース
-    visitedSet       = new Set()
-    jaMapData        = {}
-    totalCount.value = 0
-    loadCSV(csvText)
-    // プランデータを更新
-    PLAN_SETS.value = JSON.parse(planJson)
-    // マップの国塗り色を再描画
-    visitedVersion.value++
-    if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
-  } catch {
-    // ネットワークエラー等はサイレントフォールバック（静的インポートのまま）
-  }
+  })
+  // 渡航済み国データ
+  unsubCountries = onSnapshot(doc(db, 'tripdata', 'countries'), async (snap) => {
+    if (snap.exists()) {
+      if (!countryEditMode.value) {
+        visitedSet       = new Set()
+        jaMapData        = {}
+        totalCount.value = 0
+        loadCSV(snap.data().csv)
+        visitedVersion.value++
+        if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
+      }
+    } else {
+      // 初回: 静的データでシード
+      await setDoc(doc(db, 'tripdata', 'countries'), { csv: csvRaw })
+    }
+  })
 }
 
 watch(activePlans, () => updatePlanOverlay())
 
-let pollingTimer = null
-
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
-  loadRemoteData()   // バックグラウンドで最新データ取得（完了次第リアクティブに反映）
-  pollingTimer = setInterval(() => {
-    if (!showPlanEditor.value) loadRemoteData()  // 編集中は上書きしない
-  }, 30_000)
+  startFirestoreListeners()  // Firestore リアルタイムリスナー開始
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
-  clearInterval(pollingTimer)
+  unsubPlans?.()
+  unsubCountries?.()
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })

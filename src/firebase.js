@@ -1,0 +1,14 @@
+import { initializeApp } from 'firebase/app'
+import { getFirestore } from 'firebase/firestore'
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCdcBrk9fJ_WO7fVDYK4XS3Fg6miLKX-38",
+  authDomain: "trip-map-189f0.firebaseapp.com",
+  projectId: "trip-map-189f0",
+  storageBucket: "trip-map-189f0.firebasestorage.app",
+  messagingSenderId: "786949682699",
+  appId: "1:786949682699:web:c17f3db783f7568077390e"
+}
+
+const app = initializeApp(firebaseConfig)
+export const db = getFirestore(app)
