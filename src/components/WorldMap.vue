@@ -137,28 +137,30 @@
       </div>
     </Teleport>
 
+    <!-- プラン UI エディタ -->
+    <Teleport to="body">
+      <PlanEditor
+        v-if="showPlanEditor"
+        :initialData="PLAN_SETS"
+        :saving="planUISaving"
+        :error="planUIError"
+        @save="handlePlanEditorSave"
+        @cancel="showPlanEditor = false"
+      />
+    </Teleport>
+
     <!-- セット詳細モーダル -->
     <Teleport to="body">
-      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null; planEditMode = false">
+      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null">
         <div class="list-panel set-detail-panel">
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
             <div class="list-header-actions">
-              <button v-if="ghPat && !planEditMode" class="edit-mode-btn" @click="enterPlanEditMode">✏ JSON編集</button>
-              <button v-if="planEditMode" class="gh-save-btn" :disabled="planEditSaving" @click="savePlanJson">{{ planEditSaving ? '保存中…' : '💾 GitHubに保存' }}</button>
-              <button v-if="planEditMode" class="cancel-edit-btn" @click="planEditMode = false">キャンセル</button>
-              <button class="close-btn" @click="modalSetIndex = null; planEditMode = false">✕</button>
+              <button v-if="ghPat" class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
+              <button class="close-btn" @click="modalSetIndex = null">✕</button>
             </div>
           </div>
-          <div v-if="planEditMode && planEditError" class="edit-error">{{ planEditError }}</div>
           <div class="set-detail-body">
-            <!-- JSON 編集モード -->
-            <template v-if="planEditMode">
-              <textarea v-model="planEditJson" class="plan-json-editor" spellcheck="false"></textarea>
-              <p class="edit-note">保存後 GitHub にコミットされます。ページリロードで反映されます。</p>
-            </template>
-            <!-- 通常表示 -->
-            <template v-else>
             <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
               <h3 class="plan-detail-toggle" :style="{ color: plan.color }" @click="togglePlan(j)">
                 <span class="plan-toggle-icon">{{ openPlans[j] ? '▾' : '▸' }}</span>
@@ -200,7 +202,6 @@
                 <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
               </div>
             </div>
-            </template><!-- /v-else 通常表示 -->
           </div>
         </div>
       </div>
@@ -246,6 +247,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
+import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
@@ -1010,31 +1012,30 @@ async function saveCountryList() {
   }
 }
 
-// ─── プラン JSON 編集 ────────────────────────────────────────
-const planEditMode   = ref(false)
-const planEditJson   = ref('')
-const planEditSaving = ref(false)
-const planEditError  = ref('')
+// ─── プラン UI 編集 ─────────────────────────────────────────
+const showPlanEditor  = ref(false)
+const planUISaving    = ref(false)
+const planUIError     = ref('')
 
-function enterPlanEditMode() {
-  planEditJson.value  = JSON.stringify(PLAN_SETS, null, 2)
-  planEditError.value = ''
-  planEditMode.value  = true
+function openPlanEditor() {
+  planUIError.value   = ''
+  modalSetIndex.value = null
+  showPlanEditor.value = true
 }
 
-async function savePlanJson() {
-  planEditSaving.value = true
-  planEditError.value  = ''
+async function handlePlanEditorSave(newData) {
+  planUISaving.value = true
+  planUIError.value  = ''
   try {
-    JSON.parse(planEditJson.value)   // バリデーション
+    const json = JSON.stringify(newData, null, 2)
     const { sha } = await ghGetFile('src/data/plan_sets.json')
-    await ghPutFile('src/data/plan_sets.json', planEditJson.value, sha, 'プランデータを更新')
-    planEditMode.value = false
-    showUpdateBanner.value = true    // リロードを促す
+    await ghPutFile('src/data/plan_sets.json', json, sha, 'プランデータを更新')
+    showPlanEditor.value   = false
+    showUpdateBanner.value = true
   } catch (e) {
-    planEditError.value = e instanceof SyntaxError ? `JSON エラー: ${e.message}` : e.message
+    planUIError.value = e.message
   } finally {
-    planEditSaving.value = false
+    planUISaving.value = false
   }
 }
 
