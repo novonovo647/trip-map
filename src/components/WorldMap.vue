@@ -166,6 +166,7 @@
       <PlanEditor
         v-if="showPlanEditor"
         :initialData="PLAN_SETS"
+        :externalData="planExternalData"
         @close="showPlanEditor = false"
       />
     </Teleport>
@@ -1003,7 +1004,12 @@ function startFirestoreListeners() {
   // プランデータ
   unsubPlans = onSnapshot(doc(db, 'tripdata', 'plans'), async (snap) => {
     if (snap.exists()) {
-      if (!showPlanEditor.value) PLAN_SETS.value = snap.data().sets
+      const d = snap.data()
+      PLAN_SETS.value = d.sets   // 常に更新
+      // エディタが開いていて、他ユーザーの保存ならエディタ内に反映
+      if (showPlanEditor.value && d.savedBy !== auth.currentUser?.uid) {
+        planExternalData.value = JSON.parse(JSON.stringify(d.sets))
+      }
     } else {
       // 初回: 静的データでシード
       await setDoc(doc(db, 'tripdata', 'plans'), { sets: planSetsStatic })
