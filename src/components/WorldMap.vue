@@ -257,7 +257,7 @@ import csvRaw from '../data/country_list.csv?raw'
 import worldData from '../assets/countries-10m.json'
 import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
-import PLAN_SETS from '../data/plan_sets.json'
+import planSetsStatic from '../data/plan_sets.json'
 import CITIES_MASTER from '../assets/cities_master.json'
 
 // Nominatim 国名 → Natural Earth 国名 補正テーブル
@@ -300,6 +300,9 @@ async function geocodeCity(name) {
     return null
   }
 }
+
+// plan_sets.json はリアクティブ ref（起動時に GitHub から最新版を取得して上書き）
+const PLAN_SETS = ref(planSetsStatic)
 
 const mapRef = ref(null)
 let visitedSet = new Set()   // Vue reactivity 不要：D3コールバック内で直接参照
@@ -363,7 +366,7 @@ const activePlans = computed(() => {
   if (selectedSet.value === null || selectedPlan.value.size === 0) return []
   return [...selectedPlan.value]
     .sort()
-    .map(pi => resolvePlan(PLAN_SETS[selectedSet.value]?.plans[pi] ?? null))
+    .map(pi => resolvePlan(PLAN_SETS.value[selectedSet.value]?.plans[pi] ?? null))
     .filter(Boolean)
 })
 
@@ -371,7 +374,7 @@ const activePlans = computed(() => {
 watch([selectedSet, selectedPlan], async ([si, planSet]) => {
   if (si === null || planSet.size === 0) return
   for (const pi of planSet) {
-    const plan = PLAN_SETS[si]?.plans[pi]
+    const plan = PLAN_SETS.value[si]?.plans[pi]
     if (!plan) continue
     const missing = plan.cities
       .filter(c => c.name !== undefined)
@@ -475,8 +478,8 @@ const MISSING_EN_MAP = {
   'スコットランド': 'Scotland',
 }
 
-async function loadCSV() {
-  const result = Papa.parse(csvRaw, { header: true, skipEmptyLines: true })
+function loadCSV(text = csvRaw) {
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true })
   result.data.forEach(row => {
     const ja = row['名称']?.trim()
     let en = row['英語名称']?.trim()
@@ -905,7 +908,7 @@ function clearPlan() {
 const openPlans = ref([])
 
 watch(modalSetIndex, (val) => {
-  if (val !== null) openPlans.value = PLAN_SETS[val].plans.map(() => true)
+  if (val !== null) openPlans.value = PLAN_SETS.value[val].plans.map(() => true)
 })
 
 function togglePlan(j) {
@@ -1030,8 +1033,9 @@ async function handlePlanEditorSave(newData) {
     const json = JSON.stringify(newData, null, 2)
     const { sha } = await ghGetFile('src/data/plan_sets.json')
     await ghPutFile('src/data/plan_sets.json', json, sha, 'プランデータを更新')
-    showPlanEditor.value   = false
-    showUpdateBanner.value = true
+    // 保存成功 → インメモリを即時更新（リロード不要）
+    PLAN_SETS.value      = newData
+    showPlanEditor.value = false
   } catch (e) {
     planUIError.value = e.message
   } finally {
@@ -1039,11 +1043,50 @@ async function handlePlanEditorSave(newData) {
   }
 }
 
+// ── 起動時にGitHubから最新データを取得 ─────────────────────
+async function loadRemoteData() {
+  try {
+    let planJson, csvText
+    if (ghPat.value) {
+      // PAT あり: GitHub API 経由（プライベート・パブリック両対応）
+      const [planResult, csvResult] = await Promise.all([
+        ghGetFile('src/data/plan_sets.json'),
+        ghGetFile('src/data/country_list.csv'),
+      ])
+      planJson = planResult.content
+      csvText  = csvResult.content
+    } else {
+      // PAT なし: raw URL 経由（パブリックリポジトリのみ）
+      const base = `https://raw.githubusercontent.com/${ghOwner.value}/${ghRepo.value}/${ghBranch.value}`
+      const [planRes, csvRes] = await Promise.all([
+        fetch(`${base}/src/data/plan_sets.json`),
+        fetch(`${base}/src/data/country_list.csv`),
+      ])
+      if (!planRes.ok || !csvRes.ok) return
+      planJson = await planRes.text()
+      csvText  = await csvRes.text()
+    }
+    // 渡航済みデータをリセットして再パース
+    visitedSet       = new Set()
+    jaMapData        = {}
+    totalCount.value = 0
+    loadCSV(csvText)
+    // プランデータを更新
+    PLAN_SETS.value = JSON.parse(planJson)
+    // マップの国塗り色を再描画
+    visitedVersion.value++
+    if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
+  } catch {
+    // ネットワークエラー等はサイレントフォールバック（静的インポートのまま）
+  }
+}
+
 watch(activePlans, () => updatePlanOverlay())
 
 onMounted(async () => {
-  await loadCSV()
+  loadCSV()          // 静的インポートで即時表示
   await drawMap()
+  loadRemoteData()   // バックグラウンドで最新データ取得（完了次第リアクティブに反映）
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
