@@ -13,7 +13,11 @@
         <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
         <div v-if="burgerOpen" class="burger-menu">
           <p class="burger-hint">スクロール: 拡大・縮小　ドラッグ: 移動</p>
-          <button class="burger-gh-btn" @click="burgerOpen = false">🔥 Firebase 接続済み</button>
+          <template v-if="currentUser">
+            <span class="burger-user">👤 {{ currentUser.displayName }}</span>
+            <button class="burger-gh-btn" @click="handleSignOut(); burgerOpen = false">ログアウト</button>
+          </template>
+          <button v-else class="burger-gh-btn" @click="signIn(); burgerOpen = false">🔐 Googleでログイン</button>
           <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">地図データ: Natural Earth</a>
           <a href="https://ja.wikipedia.org/wiki/ISO_3166-1" target="_blank" rel="noopener">国・地域コード: ISO 3166-1</a>
         </div>
@@ -111,7 +115,7 @@
               </span>
             </h2>
             <div class="list-header-actions">
-              <button v-if="!countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
+              <button v-if="currentUser && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
               <button v-if="countryEditMode" class="gh-save-btn" :disabled="countryEditSaving" @click="saveCountryList">{{ countryEditSaving ? '保存中…' : '💾 保存' }}</button>
               <button v-if="countryEditMode" class="cancel-edit-btn" @click="countryEditMode = false">キャンセル</button>
               <button class="close-btn" @click="listMode = null; countryEditMode = false">✕</button>
@@ -156,7 +160,7 @@
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
             <div class="list-header-actions">
-              <button class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
+              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
               <button class="close-btn" @click="modalSetIndex = null">✕</button>
             </div>
           </div>
@@ -217,7 +221,8 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, setDoc, onSnapshot } from 'firebase/firestore'
-import { db } from '../firebase.js'
+import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
+import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -892,7 +897,16 @@ function reloadApp() { window.location.reload() }
 
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
-// ─── GitHub 設定（削除済み: Firestore移行）────────────────────
+// ─── 認証 ────────────────────────────────────────────
+const currentUser = ref(null)
+
+async function signIn() {
+  await signInWithPopup(auth, new GoogleAuthProvider())
+}
+
+async function handleSignOut() {
+  await fbSignOut(auth)
+}
 
 // ─── 渡航済み国 編集 ────────────────────────────────────────
 const visitedVersion    = ref(0)     // groupedList の強制再計算トリガー
@@ -972,6 +986,7 @@ async function handlePlanEditorSave(newData) {
 // ── Firestore リアルタイムリスナー ──────────────────────────
 let unsubPlans     = null
 let unsubCountries = null
+let unsubAuth      = null
 
 function startFirestoreListeners() {
   // プランデータ
@@ -1007,12 +1022,14 @@ onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
   await drawMap()
   startFirestoreListeners()  // Firestore リアルタイムリスナー開始
+  unsubAuth = onAuthStateChanged(auth, user => { currentUser.value = user })
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
   unsubPlans?.()
   unsubCountries?.()
+  unsubAuth?.()
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })
