@@ -49,10 +49,16 @@
           <!-- プラン一覧 -->
           <div class="pe-plans-section">
             <template v-for="(plan, pi) in data[activeSet].plans" :key="pi">
-              <div class="pe-plan">
+              <div
+                class="pe-plan"
+                :class="{ 'dnd-over': dragOverPlanIndex === pi && dragPlanIndex !== pi }"
+                @dragover.prevent="dragOverPlanIndex = pi"
+                @drop="onPlanDrop($event, pi)"
+              >
 
                 <!-- プランヘッダー -->
                 <div class="pe-plan-bar" @click="togglePlan(pi)">
+                  <span class="pe-drag-handle" draggable="true" @dragstart="onPlanDragStart($event, pi)" @dragend="onPlanDragEnd" @click.stop>⠿</span>
                   <span class="pe-plan-arrow">{{ openPlan[pi] ? '▾' : '▸' }}</span>
                   <input
                     class="pe-plan-name"
@@ -78,8 +84,6 @@
                     <span class="pe-label-sm">泊</span>
                   </div>
                   <div class="pe-plan-actions" @click.stop>
-                    <button class="pe-icon-btn sm" @click="movePlan(pi, -1)" :disabled="pi === 0" title="上へ">↑</button>
-                    <button class="pe-icon-btn sm" @click="movePlan(pi, 1)" :disabled="pi === data[activeSet].plans.length - 1" title="下へ">↓</button>
                     <button class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
                   </div>
                 </div>
@@ -89,15 +93,20 @@
                   <template v-for="(item, ci) in plan.cities" :key="ci">
 
                     <!-- 都市 -->
-                    <div v-if="'name' in item" class="pe-city-card">
+                    <div
+                      v-if="'name' in item"
+                      class="pe-city-card"
+                      :class="{ 'dnd-over': dragOverCity?.pi === pi && dragOverCity?.ci === ci && dragCity?.ci !== ci }"
+                      @dragover.prevent="dragOverCity = { pi, ci }"
+                      @drop="onCityDrop($event, pi, ci)"
+                    >
                       <div class="pe-city-main">
+                        <span class="pe-drag-handle" draggable="true" @dragstart="onCityDragStart($event, pi, ci)" @dragend="onCityDragEnd" @click.stop>⠿</span>
                         <span class="pe-badge city">都市</span>
                         <input v-model="item.name" placeholder="都市名" class="pe-city-name-input" />
                         <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
                         <span class="pe-label-sm">泊</span>
                         <div class="pe-item-btns">
-                          <button class="pe-icon-btn sm" @click="moveItem(plan.cities, ci, -1)" :disabled="ci === 0" title="上へ">↑</button>
-                          <button class="pe-icon-btn sm" @click="moveItem(plan.cities, ci, 1)" :disabled="ci === plan.cities.length - 1" title="下へ">↓</button>
                           <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">✕</button>
                         </div>
                       </div>
@@ -124,7 +133,14 @@
                     </div>
 
                     <!-- 移動手段 -->
-                    <div v-else class="pe-transport-card">
+                    <div
+                      v-else
+                      class="pe-transport-card"
+                      :class="{ 'dnd-over': dragOverCity?.pi === pi && dragOverCity?.ci === ci && dragCity?.ci !== ci }"
+                      @dragover.prevent="dragOverCity = { pi, ci }"
+                      @drop="onCityDrop($event, pi, ci)"
+                    >
+                      <span class="pe-drag-handle" draggable="true" @dragstart="onCityDragStart($event, pi, ci)" @dragend="onCityDragEnd" @click.stop>⠿</span>
                       <span class="pe-badge transport">移動</span>
                       <div class="pe-transport-fields">
                         <input v-model="item.transport" placeholder="移動手段（例: TK 198）" class="pe-tr-main" />
@@ -132,8 +148,6 @@
                         <input v-model="item.memo"      placeholder="メモ（任意）"             class="pe-tr-memo" />
                       </div>
                       <div class="pe-item-btns">
-                        <button class="pe-icon-btn sm" @click="moveItem(plan.cities, ci, -1)" :disabled="ci === 0" title="上へ">↑</button>
-                        <button class="pe-icon-btn sm" @click="moveItem(plan.cities, ci, 1)" :disabled="ci === plan.cities.length - 1" title="下へ">↓</button>
                         <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">✕</button>
                       </div>
                     </div>
@@ -270,6 +284,12 @@ const activeSet = ref(data.length > 0 ? 0 : null)
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
 
+// ── ドラッグ＆ドロップ ─────────────────────────────
+const dragPlanIndex     = ref(null)
+const dragOverPlanIndex = ref(null)
+const dragCity          = ref(null)  // { pi, ci }
+const dragOverCity      = ref(null)  // { pi, ci }
+
 // 最初のプランを開いた状態にする
 if (data.length > 0 && data[0].plans.length > 0) openPlan.value[0] = true
 
@@ -286,6 +306,43 @@ function togglePlan(pi) {
 function toggleSpots(pi, ci) {
   const key = `${pi}-${ci}`
   openSpots.value[key] = !openSpots.value[key]
+}
+
+// ── D&D ハンドラ ──────────────────────────────────────────
+function onPlanDragStart(e, pi) {
+  dragPlanIndex.value = pi
+  e.dataTransfer.effectAllowed = 'move'
+}
+function onPlanDragEnd() {
+  dragPlanIndex.value     = null
+  dragOverPlanIndex.value = null
+}
+function onPlanDrop(e, pi) {
+  const from = dragPlanIndex.value
+  dragPlanIndex.value     = null
+  dragOverPlanIndex.value = null
+  if (from === null || from === pi) return
+  const plans = data[activeSet.value].plans
+  const [dragged] = plans.splice(from, 1)
+  plans.splice(from < pi ? pi - 1 : pi, 0, dragged)
+}
+
+function onCityDragStart(e, pi, ci) {
+  dragCity.value = { pi, ci }
+  e.dataTransfer.effectAllowed = 'move'
+}
+function onCityDragEnd() {
+  dragCity.value     = null
+  dragOverCity.value = null
+}
+function onCityDrop(e, pi, ci) {
+  const src = dragCity.value
+  dragCity.value     = null
+  dragOverCity.value = null
+  if (!src || src.pi !== pi || src.ci === ci) return
+  const cities = data[activeSet.value].plans[pi].cities
+  const [dragged] = cities.splice(src.ci, 1)
+  cities.splice(src.ci < ci ? ci - 1 : ci, 0, dragged)
 }
 
 function ensureSpots(item) {
@@ -822,4 +879,22 @@ function deleteSpot(cityItem, spi) {
 .pe-add-btn:hover { border-color: #7ab3d4; color: #7ab3d4; }
 .pe-add-btn.sm    { padding: 2px 8px; font-size: 0.7rem; }
 .add-plan-btn     { align-self: flex-start; }
+
+/* ── ドラッグハンドル ──────────────────────────── */
+.pe-drag-handle {
+  cursor: grab;
+  color: #3a5a7a;
+  font-size: 0.95rem;
+  padding: 0 4px;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+}
+.pe-drag-handle:active { cursor: grabbing; }
+.pe-plan.dnd-over,
+.pe-city-card.dnd-over,
+.pe-transport-card.dnd-over {
+  outline: 2px solid #4a7a9b;
+  outline-offset: -2px;
+}
 </style>
