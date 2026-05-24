@@ -241,7 +241,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, setDoc, onSnapshot } from 'firebase/firestore'
-import { GoogleAuthProvider, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import maplibregl from 'maplibre-gl'
@@ -926,7 +926,13 @@ const ALLOWED_EMAILS = ['onchan30@gmail.com', 'rurururumania@gmail.com']
 
 async function signIn() {
   loginError.value = ''
-  await signInWithRedirect(auth, new GoogleAuthProvider())
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider())
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+      loginError.value = 'ログインエラー: ' + (e.code ?? e.message)
+    }
+  }
 }
 
 async function handleSignOut() {
