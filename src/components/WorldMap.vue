@@ -70,6 +70,7 @@
           </div>
         </div>
         <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">詳細</button>
+        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✏</button>
       </div>
       <!-- コース一覧（常時描画・高さ予約でマップが動かない） -->
       <div class="course-list">
@@ -175,7 +176,17 @@
         :initialData="PLAN_SETS"
         :externalData="planExternalData"
         :editorInfo="planEditorInfo"
+        :singleSetIndex="planEditorSetIndex"
         @close="showPlanEditor = false"
+      />
+    </Teleport>
+
+    <!-- プラン管理モーダル -->
+    <Teleport to="body">
+      <PlanManagerModal
+        v-if="showPlanManager"
+        :initialData="PLAN_SETS"
+        @close="showPlanManager = false"
       />
     </Teleport>
 
@@ -186,7 +197,7 @@
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
             <div class="list-header-actions">
-              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor">✏ 編集</button>
+              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor(modalSetIndex)">✏ 編集</button>
               <button class="close-btn" @click="modalSetIndex = null">✕</button>
             </div>
           </div>
@@ -250,6 +261,7 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
+import PlanManagerModal from './PlanManagerModal.vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
@@ -1016,15 +1028,22 @@ async function doSaveCountryList() {
 }
 
 // ─── プラン UI 編集 ─────────────────────────────────────────
-const showPlanEditor   = ref(false)
-const planExternalData = ref(null)   // 他ユーザーの更新をエディタに輸送
-const planEditorInfo   = ref(null)   // { name, photo }
+const showPlanEditor     = ref(false)
+const planExternalData   = ref(null)   // 他ユーザーの更新をエディタに輸送
+const planEditorInfo     = ref(null)   // { name, photo }
+const planEditorSetIndex = ref(null)   // null=全体, number=単一プラン表示
+const showPlanManager    = ref(false)
 
-function openPlanEditor() {
-  planExternalData.value = null
-  planEditorInfo.value   = null
-  modalSetIndex.value    = null
-  showPlanEditor.value   = true
+function openPlanEditor(setIdx = null) {
+  planExternalData.value  = null
+  planEditorInfo.value    = null
+  modalSetIndex.value     = null
+  planEditorSetIndex.value = typeof setIdx === 'number' ? setIdx : null
+  showPlanEditor.value    = true
+}
+
+function openPlanManager() {
+  showPlanManager.value = true
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
@@ -1385,6 +1404,20 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .detail-btn:hover { background: #2d4a6a; color: #fff; }
+
+.manage-btn {
+  flex-shrink: 0;
+  background: rgba(74,122,155,0.15);
+  border: 1px solid #2d4a6a;
+  color: #7ab3d4;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.manage-btn:hover { background: rgba(74,122,155,0.35); color: #fff; }
 
 
 /* プランナビボタン */

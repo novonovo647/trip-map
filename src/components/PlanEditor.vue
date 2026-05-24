@@ -4,7 +4,7 @@
 
       <!-- ヘッダー -->
       <div class="pe-header">
-        <h2>✏ プランを編集</h2>
+        <h2>{{ singleSetIndex !== null ? `✏ ${data[singleSetIndex]?.setName || 'プランを編集'}` : '✏ プランを編集' }}</h2>
         <div class="pe-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pe-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
@@ -23,7 +23,7 @@
       <div class="pe-body">
 
         <!-- サイドバー: コース一覧 -->
-        <div class="pe-sidebar">
+        <div class="pe-sidebar" v-if="singleSetIndex === null">
           <div
             v-for="(ps, si) in data"
             :key="si"
@@ -51,14 +51,17 @@
             <template v-for="(plan, pi) in data[activeSet].plans" :key="pi">
               <div
                 class="pe-plan"
-                :class="{ 'dnd-over': dragOverPlanIndex === pi && dragPlanIndex !== pi }"
-                @dragover.prevent="dragOverPlanIndex = pi"
-                @drop="onPlanDrop($event, pi)"
+                data-item-type="plan"
+                :data-pi="pi"
+                :class="{
+                  'dnd-over': dragOverPlanInfo?.pi === pi && dragPlanInfo?.pi !== pi,
+                  'dnd-dragging': dragPlanInfo?.pi === pi
+                }"
               >
 
                 <!-- プランヘッダー -->
                 <div class="pe-plan-bar" @click="togglePlan(pi)">
-                  <span class="pe-drag-handle" draggable="true" @dragstart="onPlanDragStart($event, pi)" @dragend="onPlanDragEnd" @click.stop>⠿</span>
+                  <span class="pe-drag-handle" @pointerdown.prevent="startPlanDrag($event, pi)" @click.stop>⠿</span>
                   <span class="pe-plan-arrow">{{ openPlan[pi] ? '▾' : '▸' }}</span>
                   <input
                     class="pe-plan-name"
@@ -96,12 +99,16 @@
                     <div
                       v-if="'name' in item"
                       class="pe-city-card"
-                      :class="{ 'dnd-over': dragOverCity?.pi === pi && dragOverCity?.ci === ci && dragCity?.ci !== ci }"
-                      @dragover.prevent="dragOverCity = { pi, ci }"
-                      @drop="onCityDrop($event, pi, ci)"
+                      data-item-type="city"
+                      :data-pi="pi"
+                      :data-ci="ci"
+                      :class="{
+                        'dnd-over': dragOverCityInfo?.pi === pi && dragOverCityInfo?.ci === ci && dragCityInfo?.ci !== ci,
+                        'dnd-dragging': dragCityInfo?.pi === pi && dragCityInfo?.ci === ci
+                      }"
                     >
                       <div class="pe-city-main">
-                        <span class="pe-drag-handle" draggable="true" @dragstart="onCityDragStart($event, pi, ci)" @dragend="onCityDragEnd" @click.stop>⠿</span>
+                        <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
                         <span class="pe-badge city">都市</span>
                         <input v-model="item.name" placeholder="都市名" class="pe-city-name-input" />
                         <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
@@ -136,11 +143,15 @@
                     <div
                       v-else
                       class="pe-transport-card"
-                      :class="{ 'dnd-over': dragOverCity?.pi === pi && dragOverCity?.ci === ci && dragCity?.ci !== ci }"
-                      @dragover.prevent="dragOverCity = { pi, ci }"
-                      @drop="onCityDrop($event, pi, ci)"
+                      data-item-type="city"
+                      :data-pi="pi"
+                      :data-ci="ci"
+                      :class="{
+                        'dnd-over': dragOverCityInfo?.pi === pi && dragOverCityInfo?.ci === ci && dragCityInfo?.ci !== ci,
+                        'dnd-dragging': dragCityInfo?.pi === pi && dragCityInfo?.ci === ci
+                      }"
                     >
-                      <span class="pe-drag-handle" draggable="true" @dragstart="onCityDragStart($event, pi, ci)" @dragend="onCityDragEnd" @click.stop>⠿</span>
+                      <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
                       <span class="pe-badge transport">移動</span>
                       <div class="pe-transport-fields">
                         <input v-model="item.transport" placeholder="移動手段（例: TK 198）" class="pe-tr-main" />
@@ -167,7 +178,7 @@
           <button class="pe-add-btn add-plan-btn" @click="addPlan">＋ コースを追加</button>
         </div>
 
-        <div v-else class="pe-no-set">
+        <div v-else-if="singleSetIndex === null" class="pe-no-set">
           プランを選択または追加してください
         </div>
       </div>
@@ -181,9 +192,10 @@ import { db, auth } from '../firebase.js'
 import { setDoc, doc } from 'firebase/firestore'
 
 const props = defineProps({
-  initialData:  { type: Array,  required: true },
-  externalData: { type: Array,  default: null },
-  editorInfo:   { type: Object, default: null },   // { name, photo }
+  initialData:    { type: Array,  required: true },
+  externalData:   { type: Array,  default: null },
+  editorInfo:     { type: Object, default: null },
+  singleSetIndex: { type: Number, default: null },
 })
 
 const emit = defineEmits(['close'])
@@ -212,8 +224,14 @@ watch(() => props.externalData, (newVal) => {
   clearTimeout(autoSaveTimer)
   autoSaveTimer = null
   data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
-  // activeSet が範囲外になった場合はリセット
-  if (activeSet.value !== null && activeSet.value >= data.length) {
+  // activeSet の更新
+  if (props.singleSetIndex !== null) {
+    if (props.singleSetIndex < data.length) {
+      activeSet.value = props.singleSetIndex
+    } else {
+      emit('close')
+    }
+  } else if (activeSet.value !== null && activeSet.value >= data.length) {
     activeSet.value = data.length > 0 ? 0 : null
   }
   setTimeout(() => { isApplyingExternal = false }, 0)
@@ -280,15 +298,15 @@ function handleClose() {
   doSave(true)
 }
 
-const activeSet = ref(data.length > 0 ? 0 : null)
+const activeSet = ref(props.singleSetIndex !== null ? props.singleSetIndex : (data.length > 0 ? 0 : null))
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
 
-// ── ドラッグ＆ドロップ ─────────────────────────────
-const dragPlanIndex     = ref(null)
-const dragOverPlanIndex = ref(null)
-const dragCity          = ref(null)  // { pi, ci }
-const dragOverCity      = ref(null)  // { pi, ci }
+// ── ポインタ D&D ─────────────────────────────
+const dragPlanInfo      = ref(null)  // { pi } | null
+const dragOverPlanInfo  = ref(null)  // { pi } | null
+const dragCityInfo      = ref(null)  // { pi, ci } | null
+const dragOverCityInfo  = ref(null)  // { pi, ci } | null
 
 // 最初のプランを開いた状態にする
 if (data.length > 0 && data[0].plans.length > 0) openPlan.value[0] = true
@@ -308,41 +326,64 @@ function toggleSpots(pi, ci) {
   openSpots.value[key] = !openSpots.value[key]
 }
 
-// ── D&D ハンドラ ──────────────────────────────────────────
-function onPlanDragStart(e, pi) {
-  dragPlanIndex.value = pi
-  e.dataTransfer.effectAllowed = 'move'
-}
-function onPlanDragEnd() {
-  dragPlanIndex.value     = null
-  dragOverPlanIndex.value = null
-}
-function onPlanDrop(e, pi) {
-  const from = dragPlanIndex.value
-  dragPlanIndex.value     = null
-  dragOverPlanIndex.value = null
-  if (from === null || from === pi) return
-  const plans = data[activeSet.value].plans
-  const [dragged] = plans.splice(from, 1)
-  plans.splice(from < pi ? pi - 1 : pi, 0, dragged)
+// ── ポインタ D&D ハンドラ ─────────────────────────────────
+function _hitEl(ev, selector) {
+  const dragging = document.querySelectorAll('.dnd-dragging')
+  dragging.forEach(el => { el.style.visibility = 'hidden' })
+  const found = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(selector)
+  dragging.forEach(el => { el.style.visibility = '' })
+  return found ?? null
 }
 
-function onCityDragStart(e, pi, ci) {
-  dragCity.value = { pi, ci }
-  e.dataTransfer.effectAllowed = 'move'
+function startPlanDrag(e, pi) {
+  dragPlanInfo.value     = { pi }
+  dragOverPlanInfo.value = { pi }
+  const onMove = (ev) => {
+    const el = _hitEl(ev, '[data-item-type="plan"]')
+    if (!el) return
+    const newPi = parseInt(el.dataset.pi)
+    if (!isNaN(newPi)) dragOverPlanInfo.value = { pi: newPi }
+  }
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    const from = dragPlanInfo.value?.pi
+    const to   = dragOverPlanInfo.value?.pi
+    dragPlanInfo.value     = null
+    dragOverPlanInfo.value = null
+    if (from == null || to == null || from === to) return
+    const plans = data[activeSet.value].plans
+    const [item] = plans.splice(from, 1)
+    plans.splice(from < to ? to - 1 : to, 0, item)
+  }
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
-function onCityDragEnd() {
-  dragCity.value     = null
-  dragOverCity.value = null
-}
-function onCityDrop(e, pi, ci) {
-  const src = dragCity.value
-  dragCity.value     = null
-  dragOverCity.value = null
-  if (!src || src.pi !== pi || src.ci === ci) return
-  const cities = data[activeSet.value].plans[pi].cities
-  const [dragged] = cities.splice(src.ci, 1)
-  cities.splice(src.ci < ci ? ci - 1 : ci, 0, dragged)
+
+function startCityDrag(e, pi, ci) {
+  dragCityInfo.value     = { pi, ci }
+  dragOverCityInfo.value = { pi, ci }
+  const onMove = (ev) => {
+    const el = _hitEl(ev, '[data-item-type="city"]')
+    if (!el) return
+    const elPi = parseInt(el.dataset.pi)
+    const elCi = parseInt(el.dataset.ci)
+    if (elPi === pi && !isNaN(elCi)) dragOverCityInfo.value = { pi, ci: elCi }
+  }
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    const src = dragCityInfo.value
+    const tgt = dragOverCityInfo.value
+    dragCityInfo.value     = null
+    dragOverCityInfo.value = null
+    if (!src || !tgt || src.ci === tgt.ci) return
+    const cities = data[activeSet.value].plans[pi].cities
+    const [item] = cities.splice(src.ci, 1)
+    cities.splice(src.ci < tgt.ci ? tgt.ci - 1 : tgt.ci, 0, item)
+  }
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 
 function ensureSpots(item) {
@@ -888,6 +929,7 @@ function deleteSpot(cityItem, spi) {
   padding: 0 4px;
   flex-shrink: 0;
   user-select: none;
+  touch-action: none;
   line-height: 1;
 }
 .pe-drag-handle:active { cursor: grabbing; }
@@ -896,5 +938,10 @@ function deleteSpot(cityItem, spi) {
 .pe-transport-card.dnd-over {
   outline: 2px solid #4a7a9b;
   outline-offset: -2px;
+}
+.pe-plan.dnd-dragging,
+.pe-city-card.dnd-dragging,
+.pe-transport-card.dnd-dragging {
+  opacity: 0.35;
 }
 </style>
