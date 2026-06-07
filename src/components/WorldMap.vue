@@ -818,7 +818,7 @@ async function drawMap() {
       mapInstance.on('click', 'arc-mode-icons',  handleArcClick)
 
       // 都市マーカークリック
-      mapInstance.on('click', 'city-circles', (e) => {
+      const handleCityClick = (e) => {
         const props = e.features[0].properties
         const rect = mapRef.value.getBoundingClientRect()
         legPopup.visible  = false
@@ -829,11 +829,13 @@ async function drawMap() {
         cityPopup.nights  = props.nights || null
         cityPopup.memo    = props.memo   || null
         cityPopup.spots   = JSON.parse(props.spots || '[]')
-      })
+      }
+      mapInstance.on('click', 'city-circles', handleCityClick)
+      mapInstance.on('click', 'city-labels',  handleCityClick)
 
       // マップ背景クリックでポップアップを閉じる
       mapInstance.on('click', (e) => {
-        const features = mapInstance.queryRenderedFeatures(e.point, { layers: ['city-circles', 'arc-lines-world', 'arc-lines-own', 'arc-mode-icons'] })
+        const features = mapInstance.queryRenderedFeatures(e.point, { layers: ['city-circles', 'city-labels', 'arc-lines-world', 'arc-lines-own', 'arc-mode-icons'] })
         if (features.length === 0) {
           cityPopup.visible = false
           legPopup.visible  = false
@@ -842,6 +844,8 @@ async function drawMap() {
 
       mapInstance.on('mouseenter', 'city-circles', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
       mapInstance.on('mouseleave', 'city-circles', () => { mapInstance.getCanvas().style.cursor = '' })
+      mapInstance.on('mouseenter', 'city-labels',  () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'city-labels',  () => { mapInstance.getCanvas().style.cursor = '' })
       mapInstance.on('mouseenter', 'arc-lines-world', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
       mapInstance.on('mouseleave', 'arc-lines-world', () => { mapInstance.getCanvas().style.cursor = '' })
       mapInstance.on('mouseenter', 'arc-lines-own',   () => { mapInstance.getCanvas().style.cursor = 'pointer' })
@@ -994,16 +998,7 @@ function addTransportIcons(map) {
     canvas.width  = SIZE
     canvas.height = SIZE
     const ctx = canvas.getContext('2d')
-    // \u80cc\u666f\u5186
-    ctx.fillStyle = 'rgba(0,0,0,0.70)'
-    ctx.beginPath()
-    ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - 1, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.65)'
-    ctx.lineWidth = 1.2
-    ctx.stroke()
-    // emoji
-    ctx.font = `${Math.floor(SIZE * 0.58)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`
+    ctx.font = `${Math.floor(SIZE * 0.80)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`
     ctx.textAlign    = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(emoji, SIZE / 2, SIZE / 2 + 1)
