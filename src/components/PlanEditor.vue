@@ -162,7 +162,7 @@
                       <div class="pe-transport-fields">
                         <div class="pe-tr-selects">
                           <select v-model="item.ticketType" class="pe-tr-select">
-                            <option value="世界券">世界券</option>
+                            <option value="世界一周券">世界一周券</option>
                             <option value="自己手配">自己手配</option>
                           </select>
                           <select v-model="item.mode" class="pe-tr-select">
@@ -491,7 +491,7 @@ function addCity(plan) {
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', url: '', memo: '', ticketType: '世界券', mode: '飛行機' })
+  plan.cities.push({ transport: '', url: '', memo: '', ticketType: '世界一周券', mode: '飛行機' })
 }
 
 function deleteItem(cities, ci) {

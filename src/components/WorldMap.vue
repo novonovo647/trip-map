@@ -117,7 +117,7 @@
           <button class="city-popup-close" @click="legPopup.visible = false">✕</button>
         </div>
         <div class="leg-popup-meta">
-          <span class="leg-popup-ticket" :class="legPopup.ticketType === '自己手配' ? 'own' : 'world'">{{ legPopup.ticketType ?? '世界券' }}</span>
+          <span class="leg-popup-ticket" :class="legPopup.ticketType === '自己手配' ? 'own' : 'world'">{{ legPopup.ticketType ?? '世界一周券' }}</span>
           <span class="leg-popup-mode">{{ { '飛行機': '✈ 飛行機', '電車': '🚆 電車', 'バス': '🚌 バス', 'その他': '🚗 その他' }[legPopup.mode] ?? legPopup.mode }}</span>
         </div>
         <div v-if="legPopup.transport" class="leg-popup-transport">
@@ -219,6 +219,7 @@
                     <!-- 移動エントリー -->
                     <div v-if="item._type === 'transport'" class="stop-leg">
                       <span class="stop-leg-arrow">↓</span>
+                      <span class="stop-leg-mode">{{ { '飛行機': '✈️', '電車': '🚆', 'バス': '🚌', 'その他': '🚗' }[item.mode] ?? '✈️' }}</span>
                       <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
                       <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
                       <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
@@ -357,7 +358,7 @@ function resolvePlan(plan) {
     .map(c => {
       if (c.name === undefined) {
         // 移動エントリー（transport のみ）
-        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界券', mode: c.mode ?? '飛行機' }
+        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界一周券', mode: c.mode ?? '飛行機' }
       }
       const coords = cityData[c.name]?.coords ?? null
       if (!coords) return null
@@ -696,17 +697,17 @@ async function drawMap() {
         },
       })
 
-      // アークソース + レイヤー（世界券=破線、自己手配=実線、移動手段アイコン）
+      // アークソース + レイヤー（世界一周券=破線、自己手配=実線、移動手段アイコン）
       mapInstance.addSource('arcs', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       })
-      // 世界券: 破線
+      // 世界一周券: 破線
       mapInstance.addLayer({
         id: 'arc-lines-world',
         type: 'line',
         source: 'arcs',
-        filter: ['!=', ['coalesce', ['get', 'ticketType'], '世界券'], '自己手配'],
+        filter: ['!=', ['coalesce', ['get', 'ticketType'], '世界一周券'], '自己手配'],
         paint: {
           'line-color': ['get', 'color'],
           'line-width': 1.5,
@@ -726,28 +727,20 @@ async function drawMap() {
           'line-opacity': 0.85,
         },
       })
-      // 移動手段アイコン (line-center に絵文字)
+      // 移動手段アイコン: canvas描画した画像をスプライトに登録
+      addTransportIcons(mapInstance)
       mapInstance.addLayer({
         id: 'arc-mode-icons',
         type: 'symbol',
         source: 'arcs',
         layout: {
           'symbol-placement': 'line-center',
-          'text-field': ['match', ['coalesce', ['get', 'mode'], '飛行機'],
-            '飛行機', '✈',
-            '電車', '🚆',
-            'バス',  '🚌',
-            '🚗',
-          ],
-          'text-size': 14,
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-          'text-rotation-alignment': 'viewport',
-        },
-        paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': '#000000',
-          'text-halo-width': 1,
+          'icon-image': ['concat', 'mode-', ['coalesce', ['get', 'mode'], '飛行機']],
+          'icon-size': 1,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
         },
       })
 
@@ -817,7 +810,7 @@ async function drawMap() {
         legPopup.transport  = props.transport  || null
         legPopup.url        = props.url        || null
         legPopup.memo       = props.memo       || null
-        legPopup.ticketType = props.ticketType || '世界券'
+        legPopup.ticketType = props.ticketType || '世界一周券'
         legPopup.mode       = props.mode       || '飛行機'
       }
       mapInstance.on('click', 'arc-lines-world', handleArcClick)
@@ -922,7 +915,7 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
         transport:  t?.transport  ?? null,
         url:        t?.url        ?? null,
         memo:       t?.memo       ?? null,
-        ticketType: t?.ticketType ?? '世界券',
+        ticketType: t?.ticketType ?? '世界一周券',
         mode:       t?.mode       ?? '飛行機',
       },
       geometry: { type: 'LineString', coordinates: coords },
@@ -986,6 +979,38 @@ function togglePlan(j) {
 const showUpdateBanner = ref(false)
 
 function reloadApp() { window.location.reload() }
+
+// \u79fb\u52d5\u624b\u6bb5\u30a2\u30a4\u30b3\u30f3\u3092 canvas \u3067\u63cf\u753b\u3057\u3066 MapLibre \u306e\u30b9\u30d7\u30e9\u30a4\u30c8\u306b\u767b\u9332
+function addTransportIcons(map) {
+  const SIZE = 30
+  const ICONS = {
+    'mode-\u98db\u884c\u6a5f': '\u2708\ufe0f',
+    'mode-\u96fb\u8eca':   '\ud83d\ude86',
+    'mode-\u30d0\u30b9':   '\ud83d\ude8c',
+    'mode-\u305d\u306e\u4ed6': '\ud83d\ude97',
+  }
+  for (const [name, emoji] of Object.entries(ICONS)) {
+    const canvas = document.createElement('canvas')
+    canvas.width  = SIZE
+    canvas.height = SIZE
+    const ctx = canvas.getContext('2d')
+    // \u80cc\u666f\u5186
+    ctx.fillStyle = 'rgba(0,0,0,0.70)'
+    ctx.beginPath()
+    ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - 1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)'
+    ctx.lineWidth = 1.2
+    ctx.stroke()
+    // emoji
+    ctx.font = `${Math.floor(SIZE * 0.58)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`
+    ctx.textAlign    = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(emoji, SIZE / 2, SIZE / 2 + 1)
+    const imageData = ctx.getImageData(0, 0, SIZE, SIZE)
+    map.addImage(name, { width: SIZE, height: SIZE, data: imageData.data })
+  }
+}
 
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
@@ -2075,6 +2100,12 @@ onUnmounted(() => {
   color: #4a7a9b;
   font-size: 0.75rem;
   line-height: 1;
+}
+
+.stop-leg-mode {
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .stop-leg-link,
