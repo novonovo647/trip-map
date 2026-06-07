@@ -192,6 +192,7 @@
         v-if="showPlanManager"
         :initialData="PLAN_SETS"
         @close="showPlanManager = false"
+        @edit="(idx) => { showPlanManager = false; openPlanEditor(idx) }"
       />
     </Teleport>
 

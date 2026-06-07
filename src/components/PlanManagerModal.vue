@@ -30,6 +30,7 @@
         >
           <span class="pm-handle" @pointerdown.prevent="startDrag($event, si)">⠿</span>
           <input class="pm-name-input" v-model="ps.setName" placeholder="プラン名" @pointerdown.stop />
+          <button class="pm-edit-btn" @click="$emit('edit', si)" title="編集">✏</button>
           <button class="pm-del-btn" @click="deleteSet(si)" title="削除">🗑</button>
         </div>
 
@@ -48,7 +49,7 @@ const props = defineProps({
   initialData: { type: Array, required: true },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'edit'])
 
 // ── 自動保存 ──────────────────────────────────────
 const saveStatus = ref('idle')
@@ -272,6 +273,17 @@ function startDrag(e, idx) {
   min-width: 0;
 }
 .pm-name-input:focus { border-color: #4a7a9b; }
+.pm-edit-btn {
+  background: none;
+  border: 1px solid #2d4a6a;
+  color: #7ab3d4;
+  border-radius: 4px;
+  padding: 4px 7px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.pm-edit-btn:hover { background: rgba(74,122,155,0.15); }
 .pm-del-btn {
   background: none;
   border: 1px solid #4a2a2a;
