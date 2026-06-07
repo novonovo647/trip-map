@@ -1,7 +1,7 @@
 <template>
   <div class="map-container">
     <!-- ログインゲート（開発モードではスキップ） -->
-    <div v-if="!currentUser && !isDev" class="login-gate">
+    <div v-if="!currentUser" class="login-gate">
       <div class="login-card">
         <div class="login-logo">🌍</div>
         <h1>海外旅行マップ</h1>
@@ -115,6 +115,10 @@
         <div class="city-popup-header">
           <span class="city-popup-name leg-popup-route">{{ legPopup.from }} → {{ legPopup.to }}</span>
           <button class="city-popup-close" @click="legPopup.visible = false">✕</button>
+        </div>
+        <div class="leg-popup-meta">
+          <span class="leg-popup-ticket" :class="legPopup.ticketType === '自己手配' ? 'own' : 'world'">{{ legPopup.ticketType ?? '世界券' }}</span>
+          <span class="leg-popup-mode">{{ { '飛行機': '✈ 飛行機', '電車': '🚆 電車', 'バス': '🚌 バス', 'その他': '🚗 その他' }[legPopup.mode] ?? legPopup.mode }}</span>
         </div>
         <div v-if="legPopup.transport" class="leg-popup-transport">
           <a v-if="legPopup.url" :href="legPopup.url" target="_blank" rel="noopener" class="leg-popup-link">{{ legPopup.transport }}</a>
@@ -327,7 +331,7 @@ const totalCount = ref(0)    // 英語名なし含む全件数（テンプレー
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [] })
-const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null })
+const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null, ticketType: null, mode: null })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
 const selectedSet   = ref(null) // null | セットindex
 const selectedPlan  = ref(new Set()) // Set<number> 選択中のプランindex（セット内）
@@ -353,7 +357,7 @@ function resolvePlan(plan) {
     .map(c => {
       if (c.name === undefined) {
         // 移動エントリー（transport のみ）
-        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null }
+        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界券', mode: c.mode ?? '飛行機' }
       }
       const coords = cityData[c.name]?.coords ?? null
       if (!coords) return null
@@ -692,20 +696,58 @@ async function drawMap() {
         },
       })
 
-      // アークソース + レイヤー
+      // アークソース + レイヤー（世界券=破線、自己手配=実線、移動手段アイコン）
       mapInstance.addSource('arcs', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       })
+      // 世界券: 破線
       mapInstance.addLayer({
-        id: 'arc-lines',
+        id: 'arc-lines-world',
         type: 'line',
         source: 'arcs',
+        filter: ['!=', ['coalesce', ['get', 'ticketType'], '世界券'], '自己手配'],
         paint: {
           'line-color': ['get', 'color'],
           'line-width': 1.5,
           'line-opacity': 0.85,
           'line-dasharray': [6, 3],
+        },
+      })
+      // 自己手配: 実線
+      mapInstance.addLayer({
+        id: 'arc-lines-own',
+        type: 'line',
+        source: 'arcs',
+        filter: ['==', ['get', 'ticketType'], '自己手配'],
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 2,
+          'line-opacity': 0.85,
+        },
+      })
+      // 移動手段アイコン (line-center に絵文字)
+      mapInstance.addLayer({
+        id: 'arc-mode-icons',
+        type: 'symbol',
+        source: 'arcs',
+        layout: {
+          'symbol-placement': 'line-center',
+          'text-field': ['match', ['coalesce', ['get', 'mode'], '飛行機'],
+            '飛行機', '✈',
+            '電車', '🚆',
+            'バス',  '🚌',
+            '🚗',
+          ],
+          'text-size': 14,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-rotation-alignment': 'viewport',
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#000000',
+          'text-halo-width': 1,
         },
       })
 
@@ -763,19 +805,24 @@ async function drawMap() {
       })
 
       // アーククリック
-      mapInstance.on('click', 'arc-lines', (e) => {
+      const handleArcClick = (e) => {
         const props = e.features[0].properties
         const rect = mapRef.value.getBoundingClientRect()
         cityPopup.visible = false
         legPopup.visible   = true
         legPopup.x         = rect.left + e.point.x + 14
         legPopup.y         = rect.top  + e.point.y - 10
-        legPopup.from      = props.from
-        legPopup.to        = props.to
-        legPopup.transport = props.transport || null
-        legPopup.url       = props.url       || null
-        legPopup.memo      = props.memo      || null
-      })
+        legPopup.from       = props.from
+        legPopup.to         = props.to
+        legPopup.transport  = props.transport  || null
+        legPopup.url        = props.url        || null
+        legPopup.memo       = props.memo       || null
+        legPopup.ticketType = props.ticketType || '世界券'
+        legPopup.mode       = props.mode       || '飛行機'
+      }
+      mapInstance.on('click', 'arc-lines-world', handleArcClick)
+      mapInstance.on('click', 'arc-lines-own',   handleArcClick)
+      mapInstance.on('click', 'arc-mode-icons',  handleArcClick)
 
       // 都市マーカークリック
       mapInstance.on('click', 'city-circles', (e) => {
@@ -793,7 +840,7 @@ async function drawMap() {
 
       // マップ背景クリックでポップアップを閉じる
       mapInstance.on('click', (e) => {
-        const features = mapInstance.queryRenderedFeatures(e.point, { layers: ['city-circles', 'arc-lines'] })
+        const features = mapInstance.queryRenderedFeatures(e.point, { layers: ['city-circles', 'arc-lines-world', 'arc-lines-own', 'arc-mode-icons'] })
         if (features.length === 0) {
           cityPopup.visible = false
           legPopup.visible  = false
@@ -802,8 +849,12 @@ async function drawMap() {
 
       mapInstance.on('mouseenter', 'city-circles', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
       mapInstance.on('mouseleave', 'city-circles', () => { mapInstance.getCanvas().style.cursor = '' })
-      mapInstance.on('mouseenter', 'arc-lines',    () => { mapInstance.getCanvas().style.cursor = 'pointer' })
-      mapInstance.on('mouseleave', 'arc-lines',    () => { mapInstance.getCanvas().style.cursor = '' })
+      mapInstance.on('mouseenter', 'arc-lines-world', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'arc-lines-world', () => { mapInstance.getCanvas().style.cursor = '' })
+      mapInstance.on('mouseenter', 'arc-lines-own',   () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'arc-lines-own',   () => { mapInstance.getCanvas().style.cursor = '' })
+      mapInstance.on('mouseenter', 'arc-mode-icons',  () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+      mapInstance.on('mouseleave', 'arc-mode-icons',  () => { mapInstance.getCanvas().style.cursor = '' })
 
       mapReady = true
       if (activePlans.value.length > 0) updatePlanOverlay()
@@ -865,12 +916,14 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
     arcFeatures.push({
       type: 'Feature',
       properties: {
-        color:     plan.color,
-        from:      cities[i].name,
-        to:        cities[i + 1].name,
-        transport: t?.transport ?? null,
-        url:       t?.url       ?? null,
-        memo:      t?.memo      ?? null,
+        color:      plan.color,
+        from:       cities[i].name,
+        to:         cities[i + 1].name,
+        transport:  t?.transport  ?? null,
+        url:        t?.url        ?? null,
+        memo:       t?.memo       ?? null,
+        ticketType: t?.ticketType ?? '世界券',
+        mode:       t?.mode       ?? '飛行機',
       },
       geometry: { type: 'LineString', coordinates: coords },
     })
@@ -937,7 +990,6 @@ function reloadApp() { window.location.reload() }
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
 // ─── 認証 ────────────────────────────────────────────
-const isDev        = import.meta.env.DEV
 const currentUser  = ref(null)
 const authReady    = ref(false)
 const loginError   = ref('')
@@ -1642,6 +1694,24 @@ onUnmounted(() => {
 /* 移動ポップアップ固有 */
 .leg-popup-route {
   font-size: 0.88rem;
+}
+.leg-popup-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.leg-popup-ticket {
+  font-size: 0.72rem;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-weight: 600;
+}
+.leg-popup-ticket.world { background: #1a3a50; color: #7ab3d4; }
+.leg-popup-ticket.own   { background: #1a3a20; color: #6fc86f; }
+.leg-popup-mode {
+  font-size: 0.8rem;
+  color: #ccc;
 }
 .leg-popup-transport {
   font-size: 0.85rem;

@@ -160,9 +160,21 @@
                       <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
                       <span class="pe-badge transport">移動</span>
                       <div class="pe-transport-fields">
-                        <input v-model="item.transport" placeholder="移動手段（例: TK 198）" class="pe-tr-main" />
-                        <input v-model="item.url"       placeholder="URL（任意）"             class="pe-tr-url"  />
-                        <input v-model="item.memo"      placeholder="メモ（任意）"             class="pe-tr-memo" />
+                        <div class="pe-tr-selects">
+                          <select v-model="item.ticketType" class="pe-tr-select">
+                            <option value="世界券">世界券</option>
+                            <option value="自己手配">自己手配</option>
+                          </select>
+                          <select v-model="item.mode" class="pe-tr-select">
+                            <option value="飛行機">✈ 飛行機</option>
+                            <option value="電車">🚆 電車</option>
+                            <option value="バス">🚌 バス</option>
+                            <option value="その他">🚗 その他</option>
+                          </select>
+                        </div>
+                        <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
+                        <input v-model="item.url"       placeholder="URL（任意）"           class="pe-tr-url"  />
+                        <input v-model="item.memo"      placeholder="メモ（任意）"           class="pe-tr-memo" />
                       </div>
                       <div class="pe-item-btns">
                         <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">✕</button>
@@ -479,7 +491,7 @@ function addCity(plan) {
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', url: '', memo: '' })
+  plan.cities.push({ transport: '', url: '', memo: '', ticketType: '世界券', mode: '飛行機' })
 }
 
 function deleteItem(cities, ci) {
@@ -941,9 +953,30 @@ function deleteSpot(cityItem, spi) {
 .pe-transport-fields {
   flex: 1;
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.pe-tr-selects {
+  display: flex;
+  gap: 4px;
+}
+.pe-tr-select {
+  background: #0d1b2a;
+  border: 1px solid #1a3a50;
+  border-radius: 4px;
+  color: #ccc;
+  padding: 3px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+  flex: 1;
+}
+.pe-tr-select:focus { border-color: #4a7a9b; }
+.pe-tr-inputs {
+  display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  min-width: 0;
 }
 .pe-tr-main, .pe-tr-url, .pe-tr-memo {
   background: #0d1b2a;
