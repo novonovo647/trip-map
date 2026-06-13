@@ -459,6 +459,29 @@ const REGION_ORDER = [
   '北米・中米', 'カリブ海', '南アメリカ', 'オセアニア', 'その他'
 ]
 
+// 一覧・カウントから除外する地域（実質的に渡航履歴管理の対象外）
+const EXCLUDE_FROM_LIST = new Set([
+  'Akrotiri',                  // アクロティリ（英軍基地）
+  'Ashmore and Cartier Is.',   // アシュモア・カルティエ諸島
+  'Br. Indian Ocean Ter.',     // 英領インド洋地域
+  'Indian Ocean Ter.',         // インド洋地域
+  'Cyprus U.N. Buffer Zone',   // キプロス国連緩衝地帯
+  'USNB Guantanamo Bay',       // グアンタナモ湾米軍基地
+  'Clipperton I.',             // クリッパートン島
+  'Coral Sea Is.',             // コーラル海諸島
+  'S. Geo. and the Is.',       // サウスジョージア・南サンドウィッチ諸島
+  'Siachen Glacier',           // シアチェン氷河
+  'Scarborough Reef',          // スカボロー礁
+  'Serranilla Bank',           // セラニーリャ礁
+  'Dhekelia',                  // デケリア（英軍基地）
+  'Heard I. and McDonald Is.', // ハード島・マクドナルド諸島
+  'Baikonur',                  // バイコヌール
+  'Bajo Nuevo Bank',           // バホ・ヌエボ礁
+  'Fr. S. Antarctic Lands',    // フランス南方・南極地域
+  'Spratly Is.',               // 南沙諸島
+  'U.S. Minor Outlying Is.',   // 米国領有小離島
+])
+
 const groupedList = computed(() => {
   if (!listMode.value || allFeatureNames.value.length === 0) return {}
   visitedVersion.value   // 保存後の強制再計算
@@ -467,6 +490,7 @@ const groupedList = computed(() => {
   const result = {}
   for (const name of allFeatureNames.value) {
     if (!name) continue
+    if (EXCLUDE_FROM_LIST.has(name)) continue
     const isV = inEdit ? editSet.has(name) : isVisited(name)
     if (listMode.value === 'visited'   &&  !isV) continue
     if (listMode.value === 'unvisited' &&   isV) continue
@@ -666,7 +690,7 @@ async function drawMap() {
 
   // 全フィーチャー名を保存（国一覧モーダル用）
   allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
-  totalFeatures.value = allFeatureNames.value.length
+  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n)).length
 
   // 既存マップを破棄してから再生成
   if (mapInstance) {
