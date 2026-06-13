@@ -283,29 +283,6 @@ import countryRegions from '../assets/country_regions.json'
 import planSetsStatic from '../data/plan_sets.json'
 import CITIES_MASTER from '../assets/cities_master.json'
 
-// Nominatim 国名 → Natural Earth 国名 補正テーブル
-const COUNTRY_NAME_FIX = {
-  'Türkiye':                              'Turkey',
-  'United States':                         'United States of America',
-  'Republic of Korea':                     'South Korea',
-  "Democratic People's Republic of Korea": 'North Korea',
-  'Czech Republic':                        'Czechia',
-  'Russian Federation':                    'Russia',
-  'Islamic Republic of Iran':              'Iran',
-  'Syrian Arab Republic':                  'Syria',
-  "Lao People's Democratic Republic":      'Laos',
-  'Viet Nam':                              'Vietnam',
-  'United Republic of Tanzania':           'Tanzania',
-  'Republic of Moldova':                   'Moldova',
-  'Republic of North Macedonia':           'Macedonia',
-  'Collectivity of Saint Martin':          'France',
-  'French Polynesia':                      'French Polynesia',
-  'Brasil':                                'Brazil',
-  'Bundesrepublik Deutschland':            'Germany',
-  'Espana':                                'Spain',
-  'Polska':                                'Poland',
-}
-
 // 都市データ: マスター + ランタイム取得キャッシュ (localStorage)
 const _localCache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
 const cityData = reactive({ ...CITIES_MASTER, ..._localCache })
@@ -318,11 +295,7 @@ async function geocodeCity(name) {
     const data = await res.json()
     if (!data.length) return null
     const item = data[0]
-    const rawCountry = item.address?.country ?? ''
-    return {
-      coords:  [parseFloat(item.lon), parseFloat(item.lat)],
-      country: COUNTRY_NAME_FIX[rawCountry] ?? rawCountry,
-    }
+    return { coords: [parseFloat(item.lon), parseFloat(item.lat)] }
   } catch {
     return null
   }
@@ -386,7 +359,7 @@ function resolvePlan(plan) {
         nights: c.nights ?? null,
         memo:   c.memo   ?? null,
         spots:  c.spots  ?? [],
-        country: c.country || cityData[c.name]?.country || null,
+        country: c.country || null,
       }
     })
     .filter(Boolean)
@@ -414,7 +387,7 @@ const allPlannedCountries = computed(() => {
     for (const plan of ps.plans) {
       for (const c of plan.cities) {
         if (c.name === undefined) continue
-        const country = c.country || cityData[c.name]?.country
+        const country = c.country
         if (country) s.add(country)
       }
     }
@@ -543,16 +516,6 @@ function getCountryFill(propName) {
   return '#4a7a9b'
 }
 
-// 国のホバー色
-function getCountryHover(propName) {
-  if (!propName) return '#6a9ab8'
-  for (const plan of activePlans.value) {
-    if (plan.countries.includes(propName)) return plan.color + 'cc'
-  }
-  if (isVisited(propName)) return '#ff6b6b'
-  if (allPlannedCountries.value.has(propName)) return '#2ecc71'
-  return '#6a9ab8'
-}
 
 function getJaName(propName) {
   if (!propName) return '不明'
