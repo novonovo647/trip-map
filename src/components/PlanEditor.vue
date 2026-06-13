@@ -116,7 +116,50 @@
                       <div class="pe-city-main">
                         <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
                         <span class="pe-badge city">都市</span>
-                        <input v-model="item.name" placeholder="都市名" class="pe-city-name-input" />
+                        <div class="pe-city-name-wrap">
+                          <input v-model="item.name" placeholder="都市名" class="pe-city-name-input"
+                            @input="onCityNameInput(`${pi}-${ci}`, item)" />
+                          <div class="pe-city-country-row">
+                            <div class="pe-country-wrap">
+                              <input
+                                :value="countryDisplayText(`${pi}-${ci}`, item)"
+                                @input="onCountryInput(`${pi}-${ci}`, item, $event.target.value)"
+                                @focus="onCountryFocus(`${pi}-${ci}`, item)"
+                                @blur="onCountryBlur(`${pi}-${ci}`)"
+                                :placeholder="cityCountryCandidates[`${pi}-${ci}`] === 'loading' ? '候補取得中…' : '国（日本語可・省略可）'"
+                                class="pe-country-input"
+                                :class="{ 'is-loading': cityCountryCandidates[`${pi}-${ci}`] === 'loading' }"
+                                autocomplete="off"
+                              />
+                              <div
+                                v-if="countryACState[`${pi}-${ci}`]?.open &&
+                                  (cityCountryCandidates[`${pi}-${ci}`]?.length ||
+                                   countryACState[`${pi}-${ci}`]?.suggestions?.length)"
+                                class="pe-country-dropdown"
+                              >
+                                <template v-if="cityCountryCandidates[`${pi}-${ci}`]?.length">
+                                  <div class="pe-country-section-label">{{ item.name }} の候補</div>
+                                  <div
+                                    v-for="s in cityCountryCandidates[`${pi}-${ci}`]"
+                                    :key="'cand-' + s.en"
+                                    class="pe-country-option pe-country-candidate"
+                                    @mousedown.prevent="selectCountry(`${pi}-${ci}`, item, s)"
+                                  >{{ s.ja }}</div>
+                                  <div v-if="countryACState[`${pi}-${ci}`]?.suggestions?.length" class="pe-country-divider"></div>
+                                </template>
+                                <template v-if="countryACState[`${pi}-${ci}`]?.suggestions?.length">
+                                  <div v-if="cityCountryCandidates[`${pi}-${ci}`]?.length" class="pe-country-section-label">すべての国</div>
+                                  <div
+                                    v-for="s in countryACState[`${pi}-${ci}`].suggestions"
+                                    :key="s.en"
+                                    class="pe-country-option"
+                                    @mousedown.prevent="selectCountry(`${pi}-${ci}`, item, s)"
+                                  >{{ s.ja }}</div>
+                                </template>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
                         <span class="pe-label-sm">泊</span>
                         <div class="pe-item-btns">
@@ -208,6 +251,9 @@
 import { ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { db, auth } from '../firebase.js'
 import { setDoc, doc } from 'firebase/firestore'
+import countryNamesJa from '../assets/country_names_ja.json'
+
+const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
 
 const props = defineProps({
   initialData:    { type: Array,  required: true },
@@ -275,6 +321,7 @@ function buildCleanedData() {
         if ('name' in item) {
           if (!item.nights && item.nights !== 0) delete item.nights
           if (!item.memo?.trim())                delete item.memo
+          if (!item.country?.trim())             delete item.country
           if (item.spots) {
             item.spots = item.spots.filter(s => s.name?.trim())
             item.spots.forEach(s => {
@@ -513,6 +560,119 @@ function addSpot(cityItem) {
 function deleteSpot(cityItem, spi) {
   cityItem.spots.splice(spi, 1)
 }
+
+// ── 国オートコンプリート ──────────────────────────
+const NOMINATIM_FIX = {
+  'Türkiye': 'Turkey',
+  'United States': 'United States of America',
+  'Republic of Korea': 'South Korea',
+  "Democratic People's Republic of Korea": 'North Korea',
+  'Czech Republic': 'Czechia',
+  'Russian Federation': 'Russia',
+  'Islamic Republic of Iran': 'Iran',
+  'Syrian Arab Republic': 'Syria',
+  "Lao People's Democratic Republic": 'Laos',
+  'Viet Nam': 'Vietnam',
+  'United Republic of Tanzania': 'Tanzania',
+  'Republic of Moldova': 'Moldova',
+  'Republic of North Macedonia': 'Macedonia',
+  'Collectivity of Saint Martin': 'France',
+  'French Polynesia': 'French Polynesia',
+  'Brasil': 'Brazil',
+}
+
+// 都市名に対応する候補国: key→[{en,ja}] | 'loading' | null
+const cityCountryCandidates = reactive({})
+const _cityNameTimers = {}
+
+function onCityNameInput(key, item) {
+  clearTimeout(_cityNameTimers[key])
+  cityCountryCandidates[key] = null
+  const name = item.name?.trim()
+  if (!name) return
+  cityCountryCandidates[key] = 'loading'
+  _cityNameTimers[key] = setTimeout(async () => {
+    try {
+      const url = 'https://nominatim.openstreetmap.org/search'
+        + `?q=${encodeURIComponent(name)}&format=json&limit=5&addressdetails=1`
+      const res = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0', 'Accept-Language': 'en' } })
+      const json = await res.json()
+      const seen = new Set()
+      const candidates = []
+      for (const r of json) {
+        const raw = r.address?.country ?? ''
+        const en = NOMINATIM_FIX[raw] ?? raw
+        if (!en || seen.has(en)) continue
+        seen.add(en)
+        candidates.push({ en, ja: countryNamesJa[en] || en })
+      }
+      cityCountryCandidates[key] = candidates
+      // 候補が1件のみなら自動選択して国フィールドを開かない
+      if (candidates.length === 1 && !item.country) {
+        item.country = candidates[0].en
+        if (countryACState[key]) {
+          countryACState[key].text = candidates[0].ja
+          countryACState[key].suggestions = []
+        }
+      }
+    } catch {
+      cityCountryCandidates[key] = null
+    }
+  }, 800)
+}
+
+const countryACState = reactive({})
+
+function countryDisplayText(key, item) {
+  const st = countryACState[key]
+  if (st !== undefined) return st.text
+  return item.country ? (countryNamesJa[item.country] || item.country) : ''
+}
+
+function onCountryInput(key, item, value) {
+  if (!countryACState[key]) countryACState[key] = { text: '', open: false, suggestions: [] }
+  countryACState[key].text = value
+  countryACState[key].open = true
+  item.country = ''
+  if (!value.trim()) { countryACState[key].suggestions = []; return }
+  const q = value.trim().toLowerCase()
+  countryACState[key].suggestions = COUNTRY_LIST
+    .filter(c => c.ja.toLowerCase().includes(q) || c.en.toLowerCase().includes(q))
+    .slice(0, 8)
+}
+
+function onCountryFocus(key, item) {
+  if (!countryACState[key]) {
+    countryACState[key] = { text: item.country ? (countryNamesJa[item.country] || item.country) : '', open: true, suggestions: [] }
+  } else {
+    countryACState[key].open = true
+  }
+  const q = countryACState[key].text.trim().toLowerCase()
+  if (q) {
+    countryACState[key].suggestions = COUNTRY_LIST
+      .filter(c => c.ja.toLowerCase().includes(q) || c.en.toLowerCase().includes(q))
+      .slice(0, 8)
+  }
+  // 候補がなくて都市名があれば即時取得
+  if (!cityCountryCandidates[key] && item.name?.trim()) {
+    onCityNameInput(key, item)
+  }
+}
+
+function onCountryBlur(key) {
+  setTimeout(() => { if (countryACState[key]) countryACState[key].open = false }, 150)
+}
+
+function selectCountry(key, item, s) {
+  item.country = s.en
+  if (countryACState[key]) {
+    countryACState[key].text = s.ja
+    countryACState[key].open = false
+    countryACState[key].suggestions = []
+  }
+}
+
+
 
 
 </script>
@@ -904,8 +1064,72 @@ function deleteSpot(cityItem, spi) {
 }
 .pe-sub-input:focus { border-color: #4a7a9b; }
 
-/* スポット */
-.pe-spots-section { padding-top: 2px; }
+/* 都市名エリア（都市名 + 国横並び） */
+.pe-city-name-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.pe-city-country-row {
+  display: flex;
+  align-items: center;
+}
+.pe-country-wrap {
+  position: relative;
+  flex: 1;
+}
+.pe-country-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0a1520;
+  border: 1px solid #1a3a50;
+  border-radius: 4px;
+  color: #88aac4;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  outline: none;
+}
+.pe-country-input:focus { border-color: #4a7a9b; color: #bbd; }
+.pe-country-input::placeholder { color: #3a5a74; }
+.pe-country-input.is-loading { color: #556; font-style: italic; }
+.pe-country-section-label {
+  font-size: 0.68rem;
+  color: #4a7a9b;
+  padding: 4px 10px 2px;
+  letter-spacing: 0.03em;
+}
+.pe-country-divider {
+  border-top: 1px solid #1e3a58;
+  margin: 3px 0;
+}
+.pe-country-candidate {
+  color: #b8e0ff;
+  font-weight: 500;
+}
+.pe-country-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #0f2030;
+  border: 1px solid #4a7a9b;
+  border-radius: 5px;
+  z-index: 500;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 2px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.pe-country-option {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.pe-country-option:hover { background: #1e3a58; color: #fff; }
 .pe-spots-toggle {
   display: flex;
   align-items: center;

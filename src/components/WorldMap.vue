@@ -43,10 +43,12 @@
         </div>
       </div>
     </div>
-    <!-- 統計: 渡航済み / 未渡航（クリックで一覧） -->
+    <!-- 統計: 渡航済み / プラン済み / 未渡航（クリックで一覧） -->
     <div class="stats">
       <span class="stat-visited" @click="listMode = 'visited'">渡航済み: <strong>{{ totalCount }}</strong></span>
       <span class="stat-sep">&nbsp;/&nbsp;</span>
+      <span v-if="plannedCount > 0" class="stat-planned">プラン済み: <strong>{{ plannedCount }}</strong></span>
+      <span v-if="plannedCount > 0" class="stat-sep">&nbsp;/&nbsp;</span>
       <span class="stat-unvisited" @click="listMode = 'unvisited'">未渡航: <strong class="total-features">{{ totalFeatures }}</strong></span>
       <span class="stat-unit">&nbsp;か国・地域</span>
     </div>
@@ -298,6 +300,10 @@ const COUNTRY_NAME_FIX = {
   'Republic of North Macedonia':           'Macedonia',
   'Collectivity of Saint Martin':          'France',
   'French Polynesia':                      'French Polynesia',
+  'Brasil':                                'Brazil',
+  'Bundesrepublik Deutschland':            'Germany',
+  'Espana':                                'Spain',
+  'Polska':                                'Poland',
 }
 
 // 都市データ: マスター + ランタイム取得キャッシュ (localStorage)
@@ -308,7 +314,7 @@ async function geocodeCity(name) {
   try {
     const url = 'https://nominatim.openstreetmap.org/search'
       + `?q=${encodeURIComponent(name)}&format=json&limit=1&addressdetails=1`
-    const res  = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0' } })
+    const res  = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0', 'Accept-Language': 'en' } })
     const data = await res.json()
     if (!data.length) return null
     const item = data[0]
@@ -320,6 +326,16 @@ async function geocodeCity(name) {
   } catch {
     return null
   }
+}
+
+async function saveGeoToFirestore(updates) {
+  try {
+    const { getDoc, updateDoc } = await import('firebase/firestore')
+    const ref = doc(db, 'tripdata', 'geodata')
+    const snap = await getDoc(ref)
+    const existing = snap.exists() ? (snap.data().cities ?? {}) : {}
+    await setDoc(ref, { cities: { ...existing, ...updates } }, { merge: true })
+  } catch { /* Firestore 保存失敗は無視 */ }
 }
 
 // plan_sets.json はリアクティブ ref（起動時に GitHub から最新版を取得して上書き）
@@ -370,15 +386,14 @@ function resolvePlan(plan) {
         nights: c.nights ?? null,
         memo:   c.memo   ?? null,
         spots:  c.spots  ?? [],
+        country: c.country || cityData[c.name]?.country || null,
       }
     })
     .filter(Boolean)
-  const countries = [...new Set(
-    items
-      .filter(i => i._type === 'city')
-      .map(i => cityData[i.name]?.country)
-      .filter(Boolean)
-  )]
+  const countrySet = new Set(
+    items.filter(i => i._type === 'city').map(i => i.country).filter(Boolean)
+  )
+  const countries = [...countrySet]
   return { ...plan, cities: items, countries }
 }
 
@@ -390,6 +405,57 @@ const activePlans = computed(() => {
     .map(pi => resolvePlan(PLAN_SETS.value[selectedSet.value]?.plans[pi] ?? null))
     .filter(Boolean)
 })
+
+// 全プランセットのすべてのプランに含まれる国のSet（常時着色用）
+const PLAN_COLOR = '#27ae60'
+const allPlannedCountries = computed(() => {
+  const s = new Set()
+  for (const ps of PLAN_SETS.value) {
+    for (const plan of ps.plans) {
+      for (const c of plan.cities) {
+        if (c.name === undefined) continue
+        const country = c.country || cityData[c.name]?.country
+        if (country) s.add(country)
+      }
+    }
+  }
+  return s
+})
+
+// プラン済みカウント（渡航済みを除く）
+const plannedCount = computed(() => {
+  let n = 0
+  for (const en of allPlannedCountries.value) {
+    if (!isVisited(en)) n++
+  }
+  return n
+})
+
+// 全プランの未知都市を一括ジオコード
+async function geocodeAllMissingCities() {
+  const updates = {}
+  for (const ps of PLAN_SETS.value) {
+    for (const plan of ps.plans) {
+      for (const c of plan.cities) {
+        if (c.name === undefined || cityData[c.name]) continue
+        const result = await geocodeCity(c.name)
+        if (result) {
+          cityData[c.name] = result
+          updates[c.name] = result
+        }
+      }
+    }
+  }
+  if (Object.keys(updates).length > 0) {
+    const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
+    Object.assign(cache, updates)
+    localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
+    saveGeoToFirestore(updates)
+  }
+}
+
+// PLAN_SETS が変わったとき（Firestore 同期含む）全都市をジオコード
+watch(PLAN_SETS, () => geocodeAllMissingCities(), { deep: true })
 
 // 選択プランが変わったとき、未知の都市を Nominatim で自動取得
 watch([selectedSet, selectedPlan], async ([si, planSet]) => {
@@ -408,6 +474,7 @@ watch([selectedSet, selectedPlan], async ([si, planSet]) => {
         const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
         cache[name] = result
         localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
+        saveGeoToFirestore({ [name]: result })
       }
     }
   }
@@ -471,7 +538,9 @@ function getCountryFill(propName) {
   for (const plan of activePlans.value) {
     if (plan.countries.includes(propName)) return plan.color
   }
-  return isVisited(propName) ? '#e63946' : '#4a7a9b'
+  if (isVisited(propName)) return '#e63946'
+  if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
+  return '#4a7a9b'
 }
 
 // 国のホバー色
@@ -480,7 +549,9 @@ function getCountryHover(propName) {
   for (const plan of activePlans.value) {
     if (plan.countries.includes(propName)) return plan.color + 'cc'
   }
-  return isVisited(propName) ? '#ff6b6b' : '#6a9ab8'
+  if (isVisited(propName)) return '#ff6b6b'
+  if (allPlannedCountries.value.has(propName)) return '#2ecc71'
+  return '#6a9ab8'
 }
 
 function getJaName(propName) {
@@ -949,7 +1020,8 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
 
 function selectSetFromDD(si) {
   selectedSet.value = si
-  selectedPlan.value = new Set()
+  const plans = PLAN_SETS.value[si]?.plans ?? []
+  selectedPlan.value = new Set(plans.map((_, i) => i))
   dropdownOpen.value = false
 }
 
@@ -1127,6 +1199,18 @@ let unsubCountries = null
 let unsubAuth      = null
 
 function startFirestoreListeners() {
+  // ジオデータ（都市座標・国名）
+  let unsubGeodata = null
+  unsubGeodata = onSnapshot(doc(db, 'tripdata', 'geodata'), (snap) => {
+    if (snap.exists()) {
+      const cities = snap.data().cities ?? {}
+      for (const [name, val] of Object.entries(cities)) {
+        if (!CITIES_MASTER[name]) {
+          cityData[name] = val
+        }
+      }
+    }
+  })
   // プランデータ
   unsubPlans = onSnapshot(doc(db, 'tripdata', 'plans'), async (snap) => {
     if (snap.exists()) {
@@ -1173,6 +1257,7 @@ function startFirestoreListeners() {
 }
 
 watch(activePlans, () => updatePlanOverlay())
+watch(allPlannedCountries, () => { if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData()) })
 
 onMounted(async () => {
   loadCSV()          // 静的インポートで即時表示
@@ -1387,6 +1472,8 @@ onUnmounted(() => {
 .stat-visited { color: #e63946; cursor: pointer; }
 .stat-visited:hover { text-decoration: underline; }
 .stat-visited strong { font-size: 1.1rem; }
+.stat-planned { color: #27ae60; }
+.stat-planned strong { font-size: 1.1rem; }
 .stat-unvisited { color: #4a7a9b; cursor: pointer; }
 .stat-unvisited:hover { text-decoration: underline; }
 .total-features { font-size: 1.1rem; color: #4a7a9b; }
