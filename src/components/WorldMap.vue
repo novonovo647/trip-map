@@ -56,7 +56,7 @@
     <div class="plan-bar">
       <div class="plan-select-row">
         <span class="plan-bar-label">プラン
-        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✏</button>
+        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✎</button>
         :</span>
         <div class="plan-selector-wrap">
           <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
@@ -143,7 +143,7 @@
               </span>
             </h2>
             <div class="list-header-actions">
-              <button v-if="currentUser && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✏ 編集</button>
+              <button v-if="currentUser && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✎ 編集</button>
               <template v-if="countryEditMode">
                 <span v-if="countryEditStatus !== 'idle'" class="ce-status" :class="countryEditStatus">
                   {{ countryEditStatus === 'saving' ? '保存中…' : countryEditStatus === 'error' ? '⚠ 保存失敗' : countryEditStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
@@ -205,7 +205,7 @@
           <div class="list-header">
             <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
             <div class="list-header-actions">
-              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor(modalSetIndex)">✏ 編集</button>
+              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor(modalSetIndex)">✎ 編集</button>
               <button class="close-btn" @click="modalSetIndex = null">✕</button>
             </div>
           </div>
@@ -531,13 +531,13 @@ function isVisited(propName) {
 
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
-  if (!propName) return '#e6e9ee'
+  if (!propName) return '#dfe1e5'
   for (const plan of activePlans.value) {
     if (plan.countries.includes(propName)) return plan.color
   }
   if (isVisited(propName)) return '#d93025'
   if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
-  return '#e6e9ee'
+  return '#dfe1e5'
 }
 
 
@@ -708,7 +708,7 @@ async function drawMap() {
         version: 8,
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
         sources: {},
-        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dbe9f7' } }],
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#a9cdec' } }],
       },
       center: [135, 35],
       zoom: 1.5,
@@ -752,7 +752,7 @@ async function drawMap() {
         source: 'countries',
         paint: {
           'line-color': '#ffffff',
-          'line-width': 0.6,
+          'line-width': 0.8,
         },
       })
 
@@ -1557,17 +1557,18 @@ onUnmounted(() => {
 
 .manage-btn {
   flex-shrink: 0;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--accent);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
   border-radius: 5px;
-  padding: 2px 7px;
-  font-size: 0.85rem;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  line-height: 1.3;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
 }
-.manage-btn:hover { background: var(--bg-selected); border-color: var(--accent); }
+.manage-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 
 /* プランナビボタン */
@@ -1866,17 +1867,17 @@ onUnmounted(() => {
 
 /* 編集モードボタン */
 .edit-mode-btn {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  color: var(--accent);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
   border-radius: 6px;
-  padding: 3px 10px;
+  padding: 3px 12px;
   font-size: 0.75rem;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s;
 }
-.edit-mode-btn:hover { background: var(--bg-selected); }
+.edit-mode-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 /* GitHub 保存ボタン → autosave に変更: ce-status で代替 */
 .ce-status {

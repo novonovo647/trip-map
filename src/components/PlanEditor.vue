@@ -10,7 +10,7 @@
           v-model="data[singleSetIndex].setName"
           placeholder="プラン名"
         />
-        <h2 v-else>✏ プランを編集</h2>
+        <h2 v-else>✎ プランを編集</h2>
         <div class="pe-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pe-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}

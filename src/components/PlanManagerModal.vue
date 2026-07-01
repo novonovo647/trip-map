@@ -4,7 +4,7 @@
 
       <!-- ヘッダー -->
       <div class="pm-header">
-        <h2>✏ プランを管理</h2>
+        <h2>✎ プランを管理</h2>
         <div class="pm-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pm-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : '✓ 保存済み' }}
@@ -30,7 +30,7 @@
         >
           <span class="pm-handle" @pointerdown.prevent="startDrag($event, si)">⠿</span>
           <input class="pm-name-input" v-model="ps.setName" placeholder="プラン名" @pointerdown.stop />
-          <button class="pm-edit-btn" @click="$emit('edit', si)" title="編集">✏</button>
+          <button class="pm-edit-btn" @click="$emit('edit', si)" title="編集">✎</button>
           <button class="pm-del-btn" @click="deleteSet(si)" title="削除">🗑</button>
         </div>
 
