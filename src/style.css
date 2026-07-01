@@ -1,3 +1,35 @@
+:root {
+  /* ── デザイントークン（Google / MS365 風ライトテーマ） ── */
+  --bg-app: #f8f9fa;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f3f4;
+  --bg-hover: #f1f3f4;
+  --bg-selected: #e8f0fe;
+  --bg-input: #f8f9fa;
+
+  --border: #dadce0;
+  --border-strong: #c4c7c5;
+
+  --text: #202124;
+  --text-secondary: #3c4043;
+  --text-muted: #5f6368;
+  --text-faint: #80868b;
+
+  --accent: #1a73e8;
+  --accent-hover: #1765cc;
+  --accent-soft: #e8f0fe;
+
+  --danger: #d93025;
+  --success: #1e8e3e;
+
+  --ocean: #dbe9f7;
+  --land: #e6e9ee;
+
+  --shadow-1: 0 1px 2px rgba(60,64,67,0.15), 0 1px 3px rgba(60,64,67,0.10);
+  --shadow-2: 0 1px 3px rgba(60,64,67,0.20), 0 4px 8px rgba(60,64,67,0.12);
+  --shadow-3: 0 4px 12px rgba(60,64,67,0.18), 0 8px 24px rgba(60,64,67,0.14);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,15 +37,17 @@
 }
 
 html {
-  background: #1a1a2e; /* セーフエリア部分の背景色をアプリに合わせる */
+  background: var(--bg-app); /* セーフエリア部分の背景色をアプリに合わせる */
 }
 
 body {
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  background: #1a1a2e;
-  color: #eee;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-app);
+  color: var(--text);
   height: 100dvh;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {

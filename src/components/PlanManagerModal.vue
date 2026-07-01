@@ -166,32 +166,32 @@ function startDrag(e, idx) {
 .pm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.72);
+  background: rgba(32,33,36,0.5);
   z-index: 300;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .pm-panel {
-  background: #1a2d40;
-  border: 1px solid #4a7a9b;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   width: min(400px, 94vw);
   max-height: min(80vh, 560px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.65);
+  box-shadow: var(--shadow-3);
 }
 .pm-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px 10px;
-  border-bottom: 1px solid #2d4a6a;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.pm-header h2 { margin: 0; font-size: 1.05rem; color: #e0e0e0; }
+.pm-header h2 { margin: 0; font-size: 1.05rem; color: var(--text); font-weight: 500; }
 .pm-header-actions { display: flex; align-items: center; gap: 6px; }
 .pm-status {
   font-size: 0.78rem;
@@ -199,24 +199,24 @@ function startDrag(e, idx) {
   border-radius: 5px;
   white-space: nowrap;
 }
-.pm-status.saved  { color: #7ad47a; }
-.pm-status.saving { color: #aaa; }
-.pm-status.error  { color: #ff8888; }
+.pm-status.saved  { color: var(--success); }
+.pm-status.saving { color: var(--text-muted); }
+.pm-status.error  { color: var(--danger); }
 .pm-close-btn {
   background: transparent;
   border: none;
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 1.3rem;
   line-height: 1;
   padding: 2px 6px;
   cursor: pointer;
   border-radius: 4px;
 }
-.pm-close-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.pm-close-btn:hover { color: var(--text); background: var(--bg-hover); }
 .pm-error {
-  background: rgba(200,50,50,0.15);
-  border-left: 3px solid #e63946;
-  color: #ff8888;
+  background: #fce8e6;
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
   font-size: 0.78rem;
   padding: 6px 16px;
   flex-shrink: 0;
@@ -231,7 +231,7 @@ function startDrag(e, idx) {
 }
 .pm-hint {
   font-size: 0.7rem;
-  color: #3a5a7a;
+  color: var(--text-faint);
   text-align: center;
   margin: 0 0 4px;
 }
@@ -239,20 +239,20 @@ function startDrag(e, idx) {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #0f2030;
-  border: 1px solid #2d4a6a;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 9px 10px;
   transition: opacity 0.15s;
 }
 .pm-item.pm-dragging { opacity: 0.3; }
 .pm-item.pm-drag-over {
-  outline: 2px solid #4a7a9b;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 .pm-handle {
   cursor: grab;
-  color: #3a5a7a;
+  color: var(--text-faint);
   font-size: 1rem;
   padding: 2px 4px;
   flex-shrink: 0;
@@ -263,42 +263,42 @@ function startDrag(e, idx) {
 .pm-handle:active { cursor: grabbing; }
 .pm-name-input {
   flex: 1;
-  background: #0d1b2a;
-  border: 1px solid #2d4a6a;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 5px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 6px 8px;
   font-size: 0.88rem;
   outline: none;
   min-width: 0;
 }
-.pm-name-input:focus { border-color: #4a7a9b; }
+.pm-name-input:focus { border-color: var(--accent); }
 .pm-edit-btn {
   background: none;
-  border: 1px solid #2d4a6a;
-  color: #7ab3d4;
+  border: 1px solid var(--border);
+  color: var(--accent);
   border-radius: 4px;
   padding: 4px 7px;
   font-size: 0.75rem;
   cursor: pointer;
   flex-shrink: 0;
 }
-.pm-edit-btn:hover { background: rgba(74,122,155,0.15); }
+.pm-edit-btn:hover { background: var(--bg-selected); }
 .pm-del-btn {
   background: none;
-  border: 1px solid #4a2a2a;
-  color: #e66;
+  border: 1px solid #f3c0bc;
+  color: var(--danger);
   border-radius: 4px;
   padding: 4px 7px;
   font-size: 0.75rem;
   cursor: pointer;
   flex-shrink: 0;
 }
-.pm-del-btn:hover { background: rgba(200,60,60,0.15); }
+.pm-del-btn:hover { background: #fce8e6; }
 .pm-add-btn {
   background: none;
-  border: 1px dashed #2d4a6a;
-  color: #4a7a9b;
+  border: 1px dashed var(--border);
+  color: var(--accent);
   border-radius: 6px;
   padding: 8px;
   font-size: 0.8rem;
@@ -306,5 +306,5 @@ function startDrag(e, idx) {
   text-align: center;
   transition: all 0.15s;
 }
-.pm-add-btn:hover { border-color: #7ab3d4; color: #7ab3d4; }
+.pm-add-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 </style>

@@ -682,7 +682,7 @@ function selectCountry(key, item, s) {
 .pe-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(32, 33, 36, 0.5);
   z-index: 300;
   display: flex;
   align-items: flex-start;
@@ -694,15 +694,15 @@ function selectCountry(key, item, s) {
 }
 
 .pe-panel {
-  background: #1a2d40;
-  border: 1px solid #4a7a9b;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   width: min(860px, 92vw);
   height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--shadow-3);
 }
 
 /* ── ヘッダー ─────────────────────────────────── */
@@ -711,21 +711,22 @@ function selectCountry(key, item, s) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px 10px;
-  border-bottom: 1px solid #2d4a6a;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   gap: 8px;
 }
 .pe-header h2 {
   margin: 0;
   font-size: 1.05rem;
-  color: #e0e0e0;
+  color: var(--text);
+  font-weight: 500;
 }
 .pe-header-name-input {
   flex: 1;
   background: transparent;
   border: none;
   border-bottom: 1px solid transparent;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 1.1rem;
   font-weight: 600;
   padding: 2px 4px;
@@ -734,7 +735,7 @@ function selectCountry(key, item, s) {
   transition: border-color 0.15s;
 }
 .pe-header-name-input:hover,
-.pe-header-name-input:focus { border-bottom-color: #4a7a9b; }
+.pe-header-name-input:focus { border-bottom-color: var(--accent); }
 .pe-header-actions {
   display: flex;
   align-items: center;
@@ -746,37 +747,37 @@ function selectCountry(key, item, s) {
   border-radius: 6px;
   white-space: nowrap;
 }
-.pe-status.saved    { color: #7ad47a; }
-.pe-status.saving   { color: #aaa; }
-.pe-status.error    { color: #ff8888; }
-.pe-status.external { color: #7ab8d4; }
+.pe-status.saved    { color: var(--success); }
+.pe-status.saving   { color: var(--text-muted); }
+.pe-status.error    { color: var(--danger); }
+.pe-status.external { color: var(--accent); }
 .pe-close-btn {
   background: transparent;
   border: none;
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 1.3rem;
   line-height: 1;
   padding: 2px 6px;
   cursor: pointer;
   border-radius: 4px;
 }
-.pe-close-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.pe-close-btn:hover { color: var(--text); background: var(--bg-hover); }
 .pe-editor-avatar {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid #7ab8d4;
+  border: 1px solid var(--accent);
   object-fit: cover;
 }
 .pe-editor-name {
   font-size: 0.75rem;
-  color: #7ab8d4;
+  color: var(--accent);
 }
 
 .pe-error {
-  background: rgba(200, 50, 50, 0.15);
-  border-left: 3px solid #e63946;
-  color: #ff8888;
+  background: #fce8e6;
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
   font-size: 0.78rem;
   padding: 6px 16px;
   flex-shrink: 0;
@@ -794,7 +795,7 @@ function selectCountry(key, item, s) {
 .pe-sidebar {
   width: 180px;
   flex-shrink: 0;
-  border-right: 1px solid #2d4a6a;
+  border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 10px 8px 14px;
   display: flex;
@@ -809,15 +810,15 @@ function selectCountry(key, item, s) {
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
-  color: #bbb;
+  color: var(--text-secondary);
   font-size: 0.82rem;
   border: 1px solid transparent;
 }
-.pe-set-tab:hover { background: #1e3352; }
+.pe-set-tab:hover { background: var(--bg-hover); }
 .pe-set-tab.active {
-  background: #2d4a6a;
-  color: #eee;
-  border-color: #4a7a9b;
+  background: var(--bg-selected);
+  color: var(--accent);
+  border-color: var(--accent);
   font-weight: 600;
 }
 .pe-set-tab-name {
@@ -829,8 +830,8 @@ function selectCountry(key, item, s) {
 .pe-add-set-btn {
   margin-top: 4px;
   background: none;
-  border: 1px dashed #2d4a6a;
-  color: #4a7a9b;
+  border: 1px dashed var(--border);
+  color: var(--accent);
   border-radius: 6px;
   padding: 6px;
   font-size: 0.78rem;
@@ -838,7 +839,7 @@ function selectCountry(key, item, s) {
   transition: border-color 0.15s, color 0.15s;
   text-align: center;
 }
-.pe-add-set-btn:hover { border-color: #7ab3d4; color: #7ab3d4; }
+.pe-add-set-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 
 /* コンテンツ */
 .pe-content {
@@ -854,7 +855,7 @@ function selectCountry(key, item, s) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #446;
+  color: var(--text-faint);
   font-size: 0.9rem;
 }
 
@@ -866,26 +867,26 @@ function selectCountry(key, item, s) {
 }
 .pe-label {
   font-size: 0.78rem;
-  color: #7ab3d4;
+  color: var(--text-muted);
   white-space: nowrap;
   min-width: 52px;
 }
 .pe-label-sm {
   font-size: 0.72rem;
-  color: #7ab3d4;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .pe-input {
-  background: #0d1b2a;
-  border: 1px solid #2d4a6a;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 5px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 5px 8px;
   font-size: 0.85rem;
   outline: none;
   transition: border-color 0.2s;
 }
-.pe-input:focus { border-color: #4a7a9b; }
+.pe-input:focus { border-color: var(--accent); }
 .pe-input-wide { width: 100%; box-sizing: border-box; }
 
 /* プランセクション */
@@ -895,7 +896,7 @@ function selectCountry(key, item, s) {
   gap: 8px;
 }
 .pe-plan {
-  border: 1px solid #2d4a6a;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -904,19 +905,19 @@ function selectCountry(key, item, s) {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  background: #0f2030;
+  background: var(--bg-subtle);
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
 }
-.pe-plan-bar:hover { background: #142a40; }
-.pe-plan-arrow { font-size: 0.7rem; color: #4a7a9b; flex-shrink: 0; }
+.pe-plan-bar:hover { background: var(--bg-hover); }
+.pe-plan-arrow { font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
 .pe-plan-name {
   flex: 1;
   background: transparent;
   border: none;
   border-bottom: 1px solid transparent;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 0.88rem;
   font-weight: 500;
   outline: none;
@@ -925,14 +926,14 @@ function selectCountry(key, item, s) {
   cursor: text;
   transition: border-color 0.2s;
 }
-.pe-plan-name:focus { border-bottom-color: #4a7a9b; }
+.pe-plan-name:focus { border-bottom-color: var(--accent); }
 .pe-color-picker {
   width: 28px;
   height: 22px;
-  border: 1px solid #2d4a6a;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1px;
-  background: #0d1b2a;
+  background: var(--bg-input);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -944,16 +945,16 @@ function selectCountry(key, item, s) {
 }
 .pe-nights-input {
   width: 44px;
-  background: #0d1b2a;
-  border: 1px solid #2d4a6a;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 3px 4px;
   font-size: 0.8rem;
   outline: none;
   text-align: right;
 }
-.pe-nights-input:focus { border-color: #4a7a9b; }
+.pe-nights-input:focus { border-color: var(--accent); }
 .pe-plan-actions {
   display: flex;
   gap: 2px;
@@ -963,8 +964,8 @@ function selectCountry(key, item, s) {
 /* アイコンボタン共通 */
 .pe-icon-btn {
   background: none;
-  border: 1px solid #2d4a6a;
-  color: #7ab3d4;
+  border: 1px solid var(--border);
+  color: var(--accent);
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 0.75rem;
@@ -972,10 +973,10 @@ function selectCountry(key, item, s) {
   line-height: 1.4;
   transition: background 0.15s;
 }
-.pe-icon-btn:hover:not(:disabled) { background: #2d4a6a; }
+.pe-icon-btn:hover:not(:disabled) { background: var(--bg-selected); }
 .pe-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.pe-icon-btn.del { border-color: #4a2a2a; color: #e66; }
-.pe-icon-btn.del:hover:not(:disabled) { background: rgba(200, 60, 60, 0.15); }
+.pe-icon-btn.del { border-color: #f3c0bc; color: var(--danger); }
+.pe-icon-btn.del:hover:not(:disabled) { background: #fce8e6; }
 .pe-icon-btn.sm { padding: 1px 5px; font-size: 0.7rem; }
 
 /* タイムライン */
@@ -984,7 +985,7 @@ function selectCountry(key, item, s) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: #0d1b2a;
+  background: var(--bg-app);
 }
 
 /* バッジ */
@@ -997,13 +998,13 @@ function selectCountry(key, item, s) {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.pe-badge.city      { background: rgba(74,122,155,0.25); color: #7ab3d4; border: 1px solid #2d4a6a; }
-.pe-badge.transport { background: rgba(80,160,80,0.18);  color: #7ad47a; border: 1px solid #2d4a6a; }
+.pe-badge.city      { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--border); }
+.pe-badge.transport { background: #e6f4ea;  color: var(--success); border: 1px solid var(--border); }
 
 /* 都市カード */
 .pe-city-card {
-  background: #0f2030;
-  border: 1px solid #2d4a6a;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 8px;
   display: flex;
@@ -1017,28 +1018,28 @@ function selectCountry(key, item, s) {
 }
 .pe-city-name-input {
   flex: 1;
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 3px 6px;
   font-size: 0.85rem;
   outline: none;
   min-width: 0;
 }
-.pe-city-name-input:focus { border-color: #4a7a9b; }
+.pe-city-name-input:focus { border-color: var(--accent); }
 .pe-city-nights {
   width: 40px;
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 3px 4px;
   font-size: 0.8rem;
   outline: none;
   text-align: right;
 }
-.pe-city-nights:focus { border-color: #4a7a9b; }
+.pe-city-nights:focus { border-color: var(--accent); }
 .pe-item-btns { display: flex; gap: 2px; flex-shrink: 0; }
 
 .pe-city-sub {
@@ -1048,21 +1049,21 @@ function selectCountry(key, item, s) {
 }
 .pe-sub-label {
   font-size: 0.68rem;
-  color: #4a7a9b;
+  color: var(--text-muted);
   white-space: nowrap;
   min-width: 28px;
 }
 .pe-sub-input {
   flex: 1;
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   padding: 2px 6px;
   font-size: 0.78rem;
   outline: none;
 }
-.pe-sub-input:focus { border-color: #4a7a9b; }
+.pe-sub-input:focus { border-color: var(--accent); }
 
 /* 都市名エリア（都市名 + 国横並び） */
 .pe-city-name-wrap {
@@ -1083,29 +1084,29 @@ function selectCountry(key, item, s) {
 .pe-country-input {
   width: 100%;
   box-sizing: border-box;
-  background: #0a1520;
-  border: 1px solid #1a3a50;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #88aac4;
+  color: var(--text-secondary);
   padding: 2px 6px;
   font-size: 0.72rem;
   outline: none;
 }
-.pe-country-input:focus { border-color: #4a7a9b; color: #bbd; }
-.pe-country-input::placeholder { color: #3a5a74; }
-.pe-country-input.is-loading { color: #556; font-style: italic; }
+.pe-country-input:focus { border-color: var(--accent); color: var(--text); }
+.pe-country-input::placeholder { color: var(--text-faint); }
+.pe-country-input.is-loading { color: var(--text-faint); font-style: italic; }
 .pe-country-section-label {
   font-size: 0.68rem;
-  color: #4a7a9b;
+  color: var(--text-muted);
   padding: 4px 10px 2px;
   letter-spacing: 0.03em;
 }
 .pe-country-divider {
-  border-top: 1px solid #1e3a58;
+  border-top: 1px solid var(--border);
   margin: 3px 0;
 }
 .pe-country-candidate {
-  color: #b8e0ff;
+  color: var(--accent);
   font-weight: 500;
 }
 .pe-country-dropdown {
@@ -1113,36 +1114,36 @@ function selectCountry(key, item, s) {
   top: 100%;
   left: 0;
   right: 0;
-  background: #0f2030;
-  border: 1px solid #4a7a9b;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 5px;
   z-index: 500;
   max-height: 180px;
   overflow-y: auto;
   margin-top: 2px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-2);
 }
 .pe-country-option {
   padding: 5px 10px;
   font-size: 0.8rem;
-  color: #ccc;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.1s;
 }
-.pe-country-option:hover { background: #1e3a58; color: #fff; }
+.pe-country-option:hover { background: var(--bg-selected); color: var(--accent); }
 .pe-spots-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.72rem;
-  color: #4a7a9b;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
   user-select: none;
   transition: background 0.15s;
 }
-.pe-spots-toggle:hover { background: rgba(74, 122, 155, 0.1); }
+.pe-spots-toggle:hover { background: var(--bg-hover); }
 .pe-spots-arrow { font-size: 0.65rem; }
 .pe-spot-row {
   display: flex;
@@ -1151,15 +1152,15 @@ function selectCountry(key, item, s) {
   padding: 3px 0 0 4px;
 }
 .pe-spot-name, .pe-spot-url, .pe-spot-memo {
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 3px;
-  color: #ccc;
+  color: var(--text-secondary);
   padding: 2px 5px;
   font-size: 0.75rem;
   outline: none;
 }
-.pe-spot-name:focus, .pe-spot-url:focus, .pe-spot-memo:focus { border-color: #4a7a9b; }
+.pe-spot-name:focus, .pe-spot-url:focus, .pe-spot-memo:focus { border-color: var(--accent); }
 .pe-spot-name { flex: 1.2; min-width: 0; }
 .pe-spot-url  { flex: 1.5; min-width: 0; }
 .pe-spot-memo { flex: 1;   min-width: 0; }
@@ -1169,8 +1170,8 @@ function selectCountry(key, item, s) {
   display: flex;
   align-items: flex-start;
   gap: 5px;
-  background: #091a10;
-  border: 1px solid #1e3a1e;
+  background: #f2f8f4;
+  border: 1px solid #cbe5d3;
   border-radius: 6px;
   padding: 6px 8px;
 }
@@ -1186,32 +1187,32 @@ function selectCountry(key, item, s) {
   gap: 4px;
 }
 .pe-tr-select {
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   padding: 3px 6px;
   font-size: 0.78rem;
   outline: none;
   cursor: pointer;
   flex: 1;
 }
-.pe-tr-select:focus { border-color: #4a7a9b; }
+.pe-tr-select:focus { border-color: var(--accent); }
 .pe-tr-inputs {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
 }
 .pe-tr-main, .pe-tr-url, .pe-tr-memo {
-  background: #0d1b2a;
-  border: 1px solid #1a3a50;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   padding: 3px 6px;
   font-size: 0.78rem;
   outline: none;
 }
-.pe-tr-main:focus, .pe-tr-url:focus, .pe-tr-memo:focus { border-color: #4a7a9b; }
+.pe-tr-main:focus, .pe-tr-url:focus, .pe-tr-memo:focus { border-color: var(--accent); }
 .pe-tr-main { flex: 2; min-width: 120px; }
 .pe-tr-url  { flex: 1.5; min-width: 100px; }
 .pe-tr-memo { flex: 1;   min-width: 80px;  }
@@ -1224,22 +1225,22 @@ function selectCountry(key, item, s) {
 }
 .pe-add-btn {
   background: none;
-  border: 1px dashed #2d4a6a;
-  color: #4a7a9b;
+  border: 1px dashed var(--border);
+  color: var(--accent);
   border-radius: 5px;
   padding: 4px 10px;
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.15s;
 }
-.pe-add-btn:hover { border-color: #7ab3d4; color: #7ab3d4; }
+.pe-add-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 .pe-add-btn.sm    { padding: 2px 8px; font-size: 0.7rem; }
 .add-plan-btn     { align-self: flex-start; }
 
 /* ── ドラッグハンドル ──────────────────────────── */
 .pe-drag-handle {
   cursor: grab;
-  color: #3a5a7a;
+  color: var(--text-faint);
   font-size: 0.95rem;
   padding: 0 4px;
   flex-shrink: 0;
@@ -1251,7 +1252,7 @@ function selectCountry(key, item, s) {
 .pe-plan.dnd-over,
 .pe-city-card.dnd-over,
 .pe-transport-card.dnd-over {
-  outline: 2px solid #4a7a9b;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 .pe-plan.dnd-dragging,
