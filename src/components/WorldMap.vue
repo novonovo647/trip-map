@@ -507,7 +507,9 @@ const groupedList = computed(() => {
 
 // 渡航困難国（取り消し線表示）
 const STRIKETHROUGH_NAMES = new Set([
-  'Iran', 'Iraq', 'North Korea', 'Syria', 'Sudan', 'Libya', 'Somalia', 'Yemen', 'Cuba',
+  'Haiti', 'Ukraine', 'Afghanistan', 'Yemen', 'Iraq', 'Iran', 'Syria', 'Lebanon',
+  'Sudan', 'Somalia', 'Central African Rep.', 'Burkina Faso', 'Mali', 'S. Sudan', 'Libya',
+  'North Korea', 'Cuba',
 ])
 
 // CSV英語名 → 10mデータのproperties.name への変換（差異のある分のみ）
