@@ -536,6 +536,7 @@ function getCountryFill(propName) {
     if (plan.countries.includes(propName)) return plan.color
   }
   if (isVisited(propName)) return '#d93025'
+  if (STRIKETHROUGH_NAMES.has(propName)) return '#757575'
   if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
   return '#dfe1e5'
 }
@@ -690,7 +691,7 @@ async function drawMap() {
 
   // 全フィーチャー名を保存（国一覧モーダル用）
   allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
-  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n)).length
+  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n) && !STRIKETHROUGH_NAMES.has(n)).length
 
   // 既存マップを破棄してから再生成
   if (mapInstance) {
