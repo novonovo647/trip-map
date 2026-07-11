@@ -512,6 +512,7 @@ const STRIKETHROUGH_NAMES = new Set([
   'North Korea', 'Cuba',
   'Pakistan', 'Somaliland', 'Palestine',
   'Niger',
+  'Nigeria', 'Eritrea', 'Burundi', 'Belarus',
 ])
 
 // CSV英語名 → 10mデータのproperties.name への変換（差異のある分のみ）
