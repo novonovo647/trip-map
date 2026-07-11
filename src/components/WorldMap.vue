@@ -163,7 +163,7 @@
                 <h3>{{ region }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
                 <ul>
                   <li v-for="c in groupedList[region]" :key="c.en"
-                    :class="{ 'strikethrough-item': c.strikethrough, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
+                    :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
                     <span>{{ c.ja }}</span>
                     <button v-if="countryEditMode && listMode === 'visited'" class="toggle-remove-btn" @click.stop="toggleCountryEdit(c.en, c.ja)" title="渡航済みから削除">✕</button>
                     <button v-if="countryEditMode && listMode === 'unvisited'" class="toggle-add-btn" :class="{ active: countryEditSet.has(c.en) }" @click.stop="toggleCountryEdit(c.en, c.ja)" :title="countryEditSet.has(c.en) ? '追加を取り消す' : '渡航済みに追加'">{{ countryEditSet.has(c.en) ? '✓' : '+' }}</button>
@@ -497,7 +497,7 @@ const groupedList = computed(() => {
     if (listMode.value === 'unvisited' && name === 'Japan') continue
     const region = countryRegions[name] || 'その他'
     if (!result[region]) result[region] = []
-    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name) })
+    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name) })
   }
   for (const arr of Object.values(result)) {
     arr.sort((a, b) => a.ja.localeCompare(b.ja, 'ja'))
@@ -505,7 +505,7 @@ const groupedList = computed(() => {
   return result
 })
 
-// 渡航困難国（取り消し線表示）
+// 渡航困難国（二重取り消し線表示・マップ濃いグレー）
 const STRIKETHROUGH_NAMES = new Set([
   'Haiti', 'Ukraine', 'Afghanistan', 'Yemen', 'Iraq', 'Iran', 'Syria', 'Lebanon',
   'Sudan', 'Somalia', 'Central African Rep.', 'Burkina Faso', 'Mali', 'S. Sudan', 'Libya',
@@ -513,6 +513,11 @@ const STRIKETHROUGH_NAMES = new Set([
   'Pakistan', 'Somaliland', 'Palestine',
   'Niger',
   'Nigeria', 'Eritrea', 'Burundi', 'Belarus',
+])
+
+// 行かない国（取り消し線表示・マップ薄いグレー）
+const SKIP_NAMES = new Set([
+  'Saudi Arabia', 'Brunei', 'Kuwait',
 ])
 
 // CSV英語名 → 10mデータのproperties.name への変換（差異のある分のみ）
@@ -542,6 +547,7 @@ function getCountryFill(propName) {
   }
   if (isVisited(propName)) return '#d93025'
   if (STRIKETHROUGH_NAMES.has(propName)) return '#757575'
+  if (SKIP_NAMES.has(propName)) return '#c0c4cc'
   if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
   return '#dfe1e5'
 }
@@ -696,7 +702,7 @@ async function drawMap() {
 
   // 全フィーチャー名を保存（国一覧モーダル用）
   allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
-  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n) && !STRIKETHROUGH_NAMES.has(n)).length
+  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n) && !STRIKETHROUGH_NAMES.has(n) && !SKIP_NAMES.has(n)).length
 
   // 既存マップを破棄してから再生成
   if (mapInstance) {
@@ -2110,8 +2116,14 @@ onUnmounted(() => {
 }
 
 .strikethrough-item {
-  text-decoration: line-through;
+  text-decoration-line: line-through;
+  text-decoration-style: double;
   opacity: 0.45;
+}
+
+.skip-item {
+  text-decoration: line-through;
+  opacity: 0.35;
 }
 
 /* セット詳細モーダル */
