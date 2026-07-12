@@ -316,11 +316,7 @@ function buildCleanedData() {
   cleaned.forEach(ps => {
     ps.plans.forEach(plan => {
       if (!plan.nights && plan.nights !== 0) plan.nights = null
-      plan.cities = plan.cities.filter(item => {
-        if (isCity(item)) return item.name?.trim()
-        // 移動エントリー: 便名・メモ・URL のいずれかがあれば保持（便名のみを必須にしない）
-        return item.transport?.trim() || item.memo?.trim() || item.url?.trim()
-      })
+      // 都市・移動エントリーとも無条件で保持（意図的に追加した行を保存時に消さない）
       plan.cities.forEach(item => {
         if (isCity(item)) {
           if (!item.nights && item.nights !== 0) delete item.nights
