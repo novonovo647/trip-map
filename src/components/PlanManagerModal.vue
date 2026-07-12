@@ -7,8 +7,12 @@
         <h2>✎ プランを管理</h2>
         <div class="pm-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pm-status" :class="saveStatus">
-            {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : '✓ 保存済み' }}
+            {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
           </span>
+          <template v-if="editorInfo && saveStatus === 'external'">
+            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pm-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
+            <span v-else class="pm-editor-name">{{ editorInfo.name }}</span>
+          </template>
           <button class="pm-close-btn" @click="handleClose" title="閉じる">×</button>
         </div>
       </div>
@@ -42,11 +46,13 @@
 
 <script setup>
 import { ref, reactive, watch, onBeforeUnmount } from 'vue'
-import { db, auth } from '../firebase.js'
-import { setDoc, doc } from 'firebase/firestore'
+import { auth } from '../firebase.js'
+import { saveWithHistory } from '../lib/persistence.js'
 
 const props = defineProps({
-  initialData: { type: Array, required: true },
+  initialData:  { type: Array,  required: true },
+  externalData: { type: Array,  default: null },
+  editorInfo:   { type: Object, default: null },
 })
 
 const emit = defineEmits(['close', 'edit'])
@@ -56,15 +62,28 @@ const saveStatus = ref('idle')
 const saveError  = ref('')
 let autoSaveTimer = null
 let initialized   = false
+let dirty         = false
 
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
 
 watch(data, () => {
   if (!initialized) return
+  dirty = true
   saveStatus.value = 'saving'
   clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(doSave, 1500)
 }, { deep: true })
+
+// 他ユーザーの更新をモーダル内に反映
+watch(() => props.externalData, (newVal) => {
+  if (!newVal) return
+  clearTimeout(autoSaveTimer)
+  autoSaveTimer = null
+  dirty = false
+  data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
+  saveStatus.value = 'external'
+  setTimeout(() => { if (saveStatus.value === 'external') saveStatus.value = 'idle' }, 3000)
+})
 
 setTimeout(() => { initialized = true }, 0)
 onBeforeUnmount(() => clearTimeout(autoSaveTimer))
@@ -73,12 +92,13 @@ async function doSave(close = false) {
   saveStatus.value = 'saving'
   saveError.value  = ''
   try {
-    await setDoc(doc(db, 'tripdata', 'plans'), {
+    await saveWithHistory('plans', {
       sets:        JSON.parse(JSON.stringify(data)),
       savedBy:     auth.currentUser?.uid          ?? '',
       editorName:  auth.currentUser?.displayName  ?? '',
       editorPhoto: auth.currentUser?.photoURL     ?? '',
     })
+    dirty = false
     saveStatus.value = 'saved'
     if (close) emit('close')
   } catch (e) {
@@ -89,7 +109,11 @@ async function doSave(close = false) {
 
 function handleClose() {
   clearTimeout(autoSaveTimer)
-  doSave(true)
+  if (dirty) {
+    doSave(true)
+  } else {
+    emit('close')
+  }
 }
 
 function addSet() {
@@ -199,9 +223,21 @@ function startDrag(e, idx) {
   border-radius: 5px;
   white-space: nowrap;
 }
-.pm-status.saved  { color: var(--success); }
-.pm-status.saving { color: var(--text-muted); }
-.pm-status.error  { color: var(--danger); }
+.pm-status.saved    { color: var(--success); }
+.pm-status.saving   { color: var(--text-muted); }
+.pm-status.error    { color: var(--danger); }
+.pm-status.external { color: var(--accent); }
+.pm-editor-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  object-fit: cover;
+}
+.pm-editor-name {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
 .pm-close-btn {
   background: transparent;
   border: none;

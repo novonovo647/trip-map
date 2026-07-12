@@ -193,6 +193,8 @@
       <PlanManagerModal
         v-if="showPlanManager"
         :initialData="PLAN_SETS"
+        :externalData="planExternalData"
+        :editorInfo="planEditorInfo"
         @close="showPlanManager = false"
         @edit="(idx) => { showPlanManager = false; openPlanEditor(idx) }"
       />
@@ -267,6 +269,9 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { saveWithHistory } from '../lib/persistence.js'
+import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
+import { isTransport } from '../utils/plan.js'
 import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
@@ -276,16 +281,13 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
 import rewind from 'geojson-rewind'
 import Papa from 'papaparse'
-import csvRaw from '../data/country_list.csv?raw'
 import worldData from '../assets/countries-10m.json'
 import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
-import planSetsStatic from '../data/plan_sets.json'
-import CITIES_MASTER from '../assets/cities_master.json'
 
-// 都市データ: マスター + ランタイム取得キャッシュ (localStorage)
+// 都市データ: ランタイム取得キャッシュ (localStorage) + Firestore geodata で構築
 const _localCache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
-const cityData = reactive({ ...CITIES_MASTER, ..._localCache })
+const cityData = reactive({ ..._localCache })
 
 async function geocodeCity(name) {
   try {
@@ -303,7 +305,7 @@ async function geocodeCity(name) {
 
 async function saveGeoToFirestore(updates) {
   try {
-    const { getDoc, updateDoc } = await import('firebase/firestore')
+    const { getDoc } = await import('firebase/firestore')
     const ref = doc(db, 'tripdata', 'geodata')
     const snap = await getDoc(ref)
     const existing = snap.exists() ? (snap.data().cities ?? {}) : {}
@@ -311,8 +313,7 @@ async function saveGeoToFirestore(updates) {
   } catch { /* Firestore 保存失敗は無視 */ }
 }
 
-// plan_sets.json はリアクティブ ref（起動時に GitHub から最新版を取得して上書き）
-const PLAN_SETS = ref(planSetsStatic)
+const PLAN_SETS = ref([])
 
 const mapRef = ref(null)
 let visitedSet = new Set()   // Vue reactivity 不要：D3コールバック内で直接参照
@@ -346,7 +347,7 @@ function resolvePlan(plan) {
   if (!plan) return null
   const items = plan.cities
     .map(c => {
-      if (c.name === undefined) {
+      if (isTransport(c)) {
         // 移動エントリー（transport のみ）
         return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界一周券', mode: c.mode ?? '飛行機' }
       }
@@ -386,7 +387,7 @@ const allPlannedCountries = computed(() => {
   for (const ps of PLAN_SETS.value) {
     for (const plan of ps.plans) {
       for (const c of plan.cities) {
-        if (c.name === undefined) continue
+        if (isTransport(c)) continue
         const country = c.country
         if (country) s.add(country)
       }
@@ -410,7 +411,7 @@ async function geocodeAllMissingCities() {
   for (const ps of PLAN_SETS.value) {
     for (const plan of ps.plans) {
       for (const c of plan.cities) {
-        if (c.name === undefined || cityData[c.name]) continue
+        if (isTransport(c) || cityData[c.name]) continue
         const result = await geocodeCity(c.name)
         if (result) {
           cityData[c.name] = result
@@ -437,7 +438,7 @@ watch([selectedSet, selectedPlan], async ([si, planSet]) => {
     const plan = PLAN_SETS.value[si]?.plans[pi]
     if (!plan) continue
     const missing = plan.cities
-      .filter(c => c.name !== undefined)
+      .filter(c => !isTransport(c))
       .map(c => c.name)
       .filter(name => !cityData[name])
     for (const name of missing) {
@@ -569,7 +570,7 @@ const MISSING_EN_MAP = {
   'スコットランド': 'Scotland',
 }
 
-function loadCSV(text = csvRaw) {
+function loadCSV(text) {
   const result = Papa.parse(text, { header: true, skipEmptyLines: true })
   result.data.forEach(row => {
     const ja = row['名称']?.trim()
@@ -582,72 +583,6 @@ function loadCSV(text = csvRaw) {
       if (ja) jaMapData[en] = ja
     }
   })
-}
-
-// 大圏弧の座標列を計算（球面線形補間）
-function geodesicPoints(from, to, n = 60) {
-  const toRad = d => d * Math.PI / 180
-  const toDeg = r => r * 180 / Math.PI
-  const [lon1, lat1] = from.map(toRad)
-  const [lon2, lat2] = to.map(toRad)
-  const d = 2 * Math.asin(Math.sqrt(
-    Math.sin((lat2 - lat1) / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2
-  ))
-  if (d < 0.001) return [[toDeg(lat1), toDeg(lon1)], [toDeg(lat2), toDeg(lon2)]]
-  const pts = []
-  for (let i = 0; i <= n; i++) {
-    const t = i / n
-    const A = Math.sin((1 - t) * d) / Math.sin(d)
-    const B = Math.sin(t * d) / Math.sin(d)
-    const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2)
-    const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2)
-    const z = A * Math.sin(lat1) + B * Math.sin(lat2)
-    pts.push([toDeg(Math.atan2(z, Math.sqrt(x * x + y * y))), toDeg(Math.atan2(y, x))])
-  }
-  return pts
-}
-
-// 日付変更線をまたぐ経度ジャンプを除去
-function unwrapLongitudes(pts) {
-  const result = [pts[0]]
-  for (let i = 1; i < pts.length; i++) {
-    const prevLng = result[i - 1][1]
-    let lng = pts[i][1]
-    while (lng - prevLng > 180) lng -= 360
-    while (lng - prevLng < -180) lng += 360
-    result.push([pts[i][0], lng])
-  }
-  return result
-}
-
-// GeoJSON リングの日付変更線ジャンプを除去（MapLibre でも必要）
-function wrapGeoJSONRing(ring) {
-  if (!ring || ring.length === 0) return ring
-  const result = [[...ring[0]]]
-  for (let i = 1; i < ring.length; i++) {
-    const prev = result[i - 1][0]
-    let lng = ring[i][0]
-    while (lng - prev > 180) lng -= 360
-    while (lng - prev < -180) lng += 360
-    result.push([lng, ring[i][1]])
-  }
-  return result
-}
-
-function wrapGeoJSONGeometry(geometry) {
-  if (!geometry) return geometry
-  if (geometry.type === 'Polygon') {
-    return { ...geometry, coordinates: geometry.coordinates.map(wrapGeoJSONRing) }
-  }
-  if (geometry.type === 'MultiPolygon') {
-    return { ...geometry, coordinates: geometry.coordinates.map(poly => poly.map(wrapGeoJSONRing)) }
-  }
-  return geometry
-}
-
-function wrapAntimeridian(fc) {
-  return { ...fc, features: fc.features.map(f => ({ ...f, geometry: wrapGeoJSONGeometry(f.geometry) })) }
 }
 
 // 国ごとの塗り色プロパティを付与した GeoJSON を生成
@@ -1160,7 +1095,7 @@ async function doSaveCountryList() {
       lines.push(`${ja},${en}`)
     }
     const csv = lines.join('\n') + '\n'
-    await setDoc(doc(db, 'tripdata', 'countries'), {
+    await saveWithHistory('countries', {
       csv,
       savedBy:     auth.currentUser?.uid          ?? '',
       editorName:  auth.currentUser?.displayName  ?? '',
@@ -1189,7 +1124,9 @@ function openPlanEditor(setIdx = null) {
 }
 
 function openPlanManager() {
-  showPlanManager.value = true
+  planExternalData.value = null
+  planEditorInfo.value   = null
+  showPlanManager.value  = true
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
@@ -1204,9 +1141,7 @@ function startFirestoreListeners() {
     if (snap.exists()) {
       const cities = snap.data().cities ?? {}
       for (const [name, val] of Object.entries(cities)) {
-        if (!CITIES_MASTER[name]) {
-          cityData[name] = val
-        }
+        cityData[name] = val
       }
     }
   })
@@ -1215,14 +1150,11 @@ function startFirestoreListeners() {
     if (snap.exists()) {
       const d = snap.data()
       PLAN_SETS.value = d.sets   // 常に更新
-      // エディタが開いていて、他ユーザーの保存ならエディタ内に反映
-      if (showPlanEditor.value && d.savedBy !== auth.currentUser?.uid) {
+      // エディタ/マネージャーが開いていて、他ユーザーの保存ならモーダル内に反映
+      if ((showPlanEditor.value || showPlanManager.value) && d.savedBy !== auth.currentUser?.uid) {
         planExternalData.value = JSON.parse(JSON.stringify(d.sets))
         planEditorInfo.value   = { name: d.editorName || '他のユーザー', photo: d.editorPhoto || null }
       }
-    } else {
-      // 初回: 静的データでシード
-      await setDoc(doc(db, 'tripdata', 'plans'), { sets: planSetsStatic })
     }
   })
   // 渡航済み国データ
@@ -1249,8 +1181,6 @@ function startFirestoreListeners() {
       }
       visitedVersion.value++
       if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
-    } else {
-      await setDoc(doc(db, 'tripdata', 'countries'), { csv: csvRaw })
     }
   })
 }
@@ -1259,7 +1189,6 @@ watch(activePlans, () => updatePlanOverlay())
 watch(allPlannedCountries, () => { if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData()) })
 
 onMounted(async () => {
-  loadCSV()          // 静的インポートで即時表示
   await drawMap()
   // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
   unsubAuth = onAuthStateChanged(auth, async user => {

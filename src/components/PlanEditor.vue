@@ -103,7 +103,7 @@
 
                     <!-- 都市 -->
                     <div
-                      v-if="'name' in item"
+                      v-if="isCity(item)"
                       class="pe-city-card"
                       data-item-type="city"
                       :data-pi="pi"
@@ -249,8 +249,9 @@
 
 <script setup>
 import { ref, reactive, watch, onBeforeUnmount } from 'vue'
-import { db, auth } from '../firebase.js'
-import { setDoc, doc } from 'firebase/firestore'
+import { auth } from '../firebase.js'
+import { saveWithHistory } from '../lib/persistence.js'
+import { isCity } from '../utils/plan.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
@@ -270,12 +271,14 @@ const saveError  = ref('')
 let   autoSaveTimer        = null
 let   initialized          = false
 let   isApplyingExternal   = false
+let   dirty                = false
 
 // 元データを破壊しないようディープコピーで作業
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
 
 watch(data, () => {
   if (!initialized || isApplyingExternal) return
+  dirty = true
   saveStatus.value = 'saving'
   clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => doSave(false), 1500)
@@ -314,11 +317,12 @@ function buildCleanedData() {
     ps.plans.forEach(plan => {
       if (!plan.nights && plan.nights !== 0) plan.nights = null
       plan.cities = plan.cities.filter(item => {
-        if ('name' in item) return item.name?.trim()
-        return item.transport?.trim()
+        if (isCity(item)) return item.name?.trim()
+        // 移動エントリー: 便名・メモ・URL のいずれかがあれば保持（便名のみを必須にしない）
+        return item.transport?.trim() || item.memo?.trim() || item.url?.trim()
       })
       plan.cities.forEach(item => {
-        if ('name' in item) {
+        if (isCity(item)) {
           if (!item.nights && item.nights !== 0) delete item.nights
           if (!item.memo?.trim())                delete item.memo
           if (!item.country?.trim())             delete item.country
@@ -344,12 +348,13 @@ async function doSave(shouldClose) {
   saveStatus.value = 'saving'
   saveError.value  = ''
   try {
-    await setDoc(doc(db, 'tripdata', 'plans'), {
+    await saveWithHistory('plans', {
       sets:        buildCleanedData(),
       savedBy:     auth.currentUser?.uid          ?? '',
       editorName:  auth.currentUser?.displayName  ?? '',
       editorPhoto: auth.currentUser?.photoURL     ?? '',
     })
+    dirty = false
     saveStatus.value = 'saved'
     if (shouldClose) emit('close')
   } catch (e) {
@@ -360,7 +365,11 @@ async function doSave(shouldClose) {
 
 function handleClose() {
   clearTimeout(autoSaveTimer)
-  doSave(true)
+  if (dirty) {
+    doSave(true)
+  } else {
+    emit('close')
+  }
 }
 
 const activeSet = ref(props.singleSetIndex !== null ? props.singleSetIndex : (data.length > 0 ? 0 : null))
