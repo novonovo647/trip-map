@@ -277,7 +277,7 @@ import {
   SKIP_NAMES, NAME_MAP, MISSING_EN_MAP,
 } from '../utils/countries.js'
 import { memoHtml } from '../utils/text.js'
-import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
+import { useAuth } from '../composables/useAuth.js'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import PlanManagerModal from './PlanManagerModal.vue'
@@ -952,26 +952,16 @@ function addTransportIcons(map) {
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
 // ─── 認証 ────────────────────────────────────────────
-const currentUser  = ref(null)
-const authReady    = ref(false)
-const loginError   = ref('')
-
 const ALLOWED_EMAILS = ['user1@example.com', 'user2@example.com']
 
-async function signIn() {
-  loginError.value = ''
-  try {
-    await signInWithPopup(auth, new GoogleAuthProvider())
-  } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-      loginError.value = 'ログインエラー: ' + (e.code ?? e.message)
-    }
-  }
-}
-
-async function handleSignOut() {
-  await fbSignOut(auth)
-}
+const { currentUser, authReady, loginError, signIn, handleSignOut, start: startAuth, stop: stopAuth } = useAuth({
+  allowedEmails: ALLOWED_EMAILS,
+  onLogin:  () => startFirestoreListeners(),
+  onLogout: () => {
+    unsubPlans?.();     unsubPlans     = null
+    unsubCountries?.(); unsubCountries = null
+  },
+})
 
 // ─── 渡航済み国 編集 ────────────────────────────────────────
 const visitedVersion    = ref(0)     // groupedList の強制再計算トリガー
@@ -1067,7 +1057,6 @@ function openPlanManager() {
 // ── Firestore リアルタイムリスナー ──────────────────────────
 let unsubPlans     = null
 let unsubCountries = null
-let unsubAuth      = null
 
 function startFirestoreListeners() {
   // ジオデータ（都市座標・国名）
@@ -1126,31 +1115,14 @@ watch(allPlannedCountries, () => { if (mapReady) mapInstance?.getSource('countri
 onMounted(async () => {
   await drawMap()
   // 認証状態を監視: ログイン後にFirestoreリスナー開始、ログアウト時に解除
-  unsubAuth = onAuthStateChanged(auth, async user => {
-    // ホワイトリスト外のアカウントはログアウト
-    if (user && !ALLOWED_EMAILS.includes(user.email)) {
-      await fbSignOut(auth)
-      loginError.value = 'このアカウントはアクセス権がありません'
-      currentUser.value = null
-      authReady.value   = true
-      return
-    }
-    currentUser.value = user
-    authReady.value   = true
-    if (user) {
-      startFirestoreListeners()
-    } else {
-      unsubPlans?.();     unsubPlans     = null
-      unsubCountries?.(); unsubCountries = null
-    }
-  })
+  startAuth()
   window.addEventListener('app-update-available', onUpdateAvailable)
 })
 
 onUnmounted(() => {
   unsubPlans?.()
   unsubCountries?.()
-  unsubAuth?.()
+  stopAuth()
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
 })
