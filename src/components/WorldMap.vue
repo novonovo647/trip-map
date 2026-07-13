@@ -269,16 +269,16 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
-import { saveWithHistory } from '../lib/persistence.js'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
 import {
   REGION_ORDER, EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
-  SKIP_NAMES, NAME_MAP, MISSING_EN_MAP,
+  SKIP_NAMES, NAME_MAP,
 } from '../utils/countries.js'
 import { memoHtml } from '../utils/text.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useGeocoding } from '../composables/useGeocoding.js'
+import { useVisitedCountries } from '../composables/useVisitedCountries.js'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import PlanManagerModal from './PlanManagerModal.vue'
@@ -286,21 +286,31 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
 import rewind from 'geojson-rewind'
-import Papa from 'papaparse'
 import worldData from '../assets/countries-10m.json'
-import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
 
 // 都市データ: ランタイム取得キャッシュ (localStorage) + Firestore geodata で構築
 const { cityData, geocodeSets, geocodePlans, mergeGeoData } = useGeocoding()
 
+// 渡航済み国ドメイン（CSV読み込み・編集・保存・同期）
+const {
+  totalCount, visitedVersion,
+  countryEditMode, countryEditSet, countryEditStatus, countryEditorInfo, countryEditError,
+  countryEditAdded, countryEditRemoved,
+  isVisited, getJaName,
+  enterEditMode: enterCountryEditMode,
+  toggleEdit:   toggleCountryEdit,
+  closeEdit:    closeCountryEdit,
+  start: startCountriesSync,
+  stop:  stopCountriesSync,
+} = useVisitedCountries({
+  onUpdated: () => { if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData()) },
+})
+
 const PLAN_SETS = ref([])
 
 const mapRef = ref(null)
-let visitedSet = new Set()   // Vue reactivity 不要：D3コールバック内で直接参照
-let jaMapData = {}           // Vue reactivity 不要
 const allFeatureNames = ref([])  // drawMap() 後に全フィーチャー名を格納
-const totalCount = ref(0)    // 英語名なし含む全件数（テンプレートで表示）
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [] })
@@ -417,15 +427,6 @@ const groupedList = computed(() => {
   return result
 })
 
-function isVisited(propName) {
-  if (!propName) return false
-  if (visitedSet.has(propName)) return true
-  for (const [csvName, mappedName] of Object.entries(NAME_MAP)) {
-    if (mappedName === propName && visitedSet.has(csvName)) return true
-  }
-  return false
-}
-
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
   if (!propName) return '#dfe1e5'
@@ -437,31 +438,6 @@ function getCountryFill(propName) {
   if (SKIP_NAMES.has(propName)) return '#c0c4cc'
   if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
   return '#dfe1e5'
-}
-
-
-function getJaName(propName) {
-  if (!propName) return '不明'
-  if (jaMapData[propName]) return jaMapData[propName]
-  for (const [csvName, mappedName] of Object.entries(NAME_MAP)) {
-    if (mappedName === propName && jaMapData[csvName]) return jaMapData[csvName]
-  }
-  return countryNamesJa[propName] || propName
-}
-
-function loadCSV(text) {
-  const result = Papa.parse(text, { header: true, skipEmptyLines: true })
-  result.data.forEach(row => {
-    const ja = row['名称']?.trim()
-    let en = row['英語名称']?.trim()
-    // 英語名が空の場合は補完マッピングを使用
-    if (!en && ja && MISSING_EN_MAP[ja]) en = MISSING_EN_MAP[ja]
-    if (ja || en) totalCount.value++
-    if (en) {
-      visitedSet.add(en)
-      if (ja) jaMapData[en] = ja
-    }
-  })
 }
 
 // 国ごとの塗り色プロパティを付与した GeoJSON を生成
@@ -900,81 +876,18 @@ const ALLOWED_EMAILS = ['user1@example.com', 'user2@example.com']
 
 const { currentUser, authReady, loginError, signIn, handleSignOut, start: startAuth, stop: stopAuth } = useAuth({
   allowedEmails: ALLOWED_EMAILS,
-  onLogin:  () => startFirestoreListeners(),
+  onLogin:  () => { startFirestoreListeners(); startCountriesSync() },
   onLogout: () => {
-    unsubPlans?.();     unsubPlans     = null
-    unsubCountries?.(); unsubCountries = null
+    unsubPlans?.(); unsubPlans = null
+    stopCountriesSync()
   },
 })
 
 // ─── 渡航済み国 編集 ────────────────────────────────────────
-const visitedVersion    = ref(0)     // groupedList の強制再計算トリガー
-const countryEditMode   = ref(false)
-const countryEditSet    = ref(new Set())
-const countryEditOrig   = ref(new Set())
-const countryEditStatus = ref('idle')  // 'idle' | 'saving' | 'saved' | 'error' | 'external'
-const countryEditorInfo = ref(null)    // { name, photo }
-const countryEditError  = ref('')
-let   countryEditTimer  = null
-
-const countryEditAdded   = computed(() => { let n = 0; for (const en of countryEditSet.value) { if (!countryEditOrig.value.has(en)) n++ }; return n })
-const countryEditRemoved = computed(() => { let n = 0; for (const en of countryEditOrig.value) { if (!countryEditSet.value.has(en)) n++ }; return n })
-
-function enterCountryEditMode() {
-  countryEditSet.value    = new Set(visitedSet)
-  countryEditOrig.value   = new Set(visitedSet)
-  countryEditError.value  = ''
-  countryEditStatus.value = 'idle'
-  countryEditorInfo.value = null
-  countryEditMode.value   = true
-}
-
-function toggleCountryEdit(enName, jaName) {
-  const next = new Set(countryEditSet.value)
-  if (next.has(enName)) { next.delete(enName) }
-  else { next.add(enName); if (jaName && !jaMapData[enName]) jaMapData[enName] = jaName }
-  countryEditSet.value = next
-  // オートセーブ（1.5秒デバウンス）
-  countryEditStatus.value = 'saving'
-  clearTimeout(countryEditTimer)
-  countryEditTimer = setTimeout(() => doSaveCountryList(), 1500)
-}
-
 // リスト閉じる（編集中なら保留分を即時保存）
 function closeList() {
-  if (countryEditMode.value && countryEditTimer !== null) {
-    clearTimeout(countryEditTimer)
-    countryEditTimer = null
-    doSaveCountryList()
-  }
-  countryEditMode.value   = false
-  countryEditStatus.value = 'idle'
-  countryEditorInfo.value = null
-  listMode.value          = null
-}
-
-async function doSaveCountryList() {
-  countryEditTimer        = null
-  countryEditStatus.value = 'saving'
-  countryEditError.value  = ''
-  try {
-    const lines = ['名称,英語名称']
-    for (const en of [...countryEditSet.value].sort()) {
-      const ja = jaMapData[en] || countryNamesJa[en] || en
-      lines.push(`${ja},${en}`)
-    }
-    const csv = lines.join('\n') + '\n'
-    await saveWithHistory('countries', {
-      csv,
-      savedBy:     auth.currentUser?.uid          ?? '',
-      editorName:  auth.currentUser?.displayName  ?? '',
-      editorPhoto: auth.currentUser?.photoURL     ?? '',
-    })
-    countryEditStatus.value = 'saved'
-  } catch (e) {
-    countryEditStatus.value = 'error'
-    countryEditError.value  = e.message
-  }
+  closeCountryEdit()
+  listMode.value = null
 }
 
 // ─── プラン UI 編集 ─────────────────────────────────────────
@@ -999,8 +912,7 @@ function openPlanManager() {
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
-let unsubPlans     = null
-let unsubCountries = null
+let unsubPlans = null
 
 function startFirestoreListeners() {
   // ジオデータ（都市座標・国名）
@@ -1022,32 +934,6 @@ function startFirestoreListeners() {
       }
     }
   })
-  // 渡航済み国データ
-  unsubCountries = onSnapshot(doc(db, 'tripdata', 'countries'), async (snap) => {
-    if (snap.exists()) {
-      const d = snap.data()
-      // 編集中に他ユーザーの変更が来た場合: editSet を更新してアイコン表示
-      if (countryEditMode.value && d.savedBy && d.savedBy !== auth.currentUser?.uid) {
-        clearTimeout(countryEditTimer)
-        countryEditTimer = null
-        visitedSet       = new Set()
-        jaMapData        = {}
-        totalCount.value = 0
-        loadCSV(d.csv)
-        countryEditSet.value    = new Set(visitedSet)
-        countryEditorInfo.value = { name: d.editorName || '他のユーザー', photo: d.editorPhoto || null }
-        countryEditStatus.value = 'external'
-        setTimeout(() => { if (countryEditStatus.value === 'external') countryEditStatus.value = 'saved' }, 3000)
-      } else {
-        visitedSet       = new Set()
-        jaMapData        = {}
-        totalCount.value = 0
-        loadCSV(d.csv)
-      }
-      visitedVersion.value++
-      if (mapReady) mapInstance?.getSource('countries')?.setData(buildCountriesData())
-    }
-  })
 }
 
 watch(activePlans, () => updatePlanOverlay())
@@ -1062,7 +948,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unsubPlans?.()
-  unsubCountries?.()
+  stopCountriesSync()
   stopAuth()
   mapInstance?.remove()
   window.removeEventListener('app-update-available', onUpdateAvailable)
