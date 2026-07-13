@@ -20,7 +20,11 @@
   --accent-soft: #e8f0fe;
 
   --danger: #d93025;
+  --danger-soft: #fce8e6;
+  --danger-border: #f3c0bc;
   --success: #1e8e3e;
+  --success-soft: #e6f4ea;
+  --success-border: #b7dfc0;
 
   --ocean: #a9cdec;
   --land: #dfe1e5;

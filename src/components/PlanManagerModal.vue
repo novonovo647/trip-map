@@ -250,7 +250,7 @@ function startDrag(e, idx) {
 }
 .pm-close-btn:hover { color: var(--text); background: var(--bg-hover); }
 .pm-error {
-  background: #fce8e6;
+  background: var(--danger-soft);
   border-left: 3px solid var(--danger);
   color: var(--danger);
   font-size: 0.78rem;
@@ -322,7 +322,7 @@ function startDrag(e, idx) {
 .pm-edit-btn:hover { background: var(--bg-selected); }
 .pm-del-btn {
   background: none;
-  border: 1px solid #f3c0bc;
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   border-radius: 4px;
   padding: 4px 7px;
@@ -330,7 +330,7 @@ function startDrag(e, idx) {
   cursor: pointer;
   flex-shrink: 0;
 }
-.pm-del-btn:hover { background: #fce8e6; }
+.pm-del-btn:hover { background: var(--danger-soft); }
 .pm-add-btn {
   background: none;
   border: 1px dashed var(--border);

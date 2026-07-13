@@ -786,7 +786,7 @@ function selectCountry(key, item, s) {
 }
 
 .pe-error {
-  background: #fce8e6;
+  background: var(--danger-soft);
   border-left: 3px solid var(--danger);
   color: var(--danger);
   font-size: 0.78rem;
@@ -986,8 +986,8 @@ function selectCountry(key, item, s) {
 }
 .pe-icon-btn:hover:not(:disabled) { background: var(--bg-selected); }
 .pe-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.pe-icon-btn.del { border-color: #f3c0bc; color: var(--danger); }
-.pe-icon-btn.del:hover:not(:disabled) { background: #fce8e6; }
+.pe-icon-btn.del { border-color: var(--danger-border); color: var(--danger); }
+.pe-icon-btn.del:hover:not(:disabled) { background: var(--danger-soft); }
 .pe-icon-btn.sm { padding: 1px 5px; font-size: 0.7rem; }
 
 /* タイムライン */
@@ -1010,7 +1010,7 @@ function selectCountry(key, item, s) {
   flex-shrink: 0;
 }
 .pe-badge.city      { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--border); }
-.pe-badge.transport { background: #e6f4ea;  color: var(--success); border: 1px solid var(--border); }
+.pe-badge.transport { background: var(--success-soft);  color: var(--success); border: 1px solid var(--border); }
 
 /* 都市カード */
 .pe-city-card {

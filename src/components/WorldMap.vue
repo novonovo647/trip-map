@@ -202,6 +202,7 @@ import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
+import { MAP_COLORS } from '../utils/mapColors.js'
 import {
   EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
   SKIP_NAMES, NAME_MAP,
@@ -298,7 +299,6 @@ const activePlans = computed(() => {
 })
 
 // 全プランセットのすべてのプランに含まれる国のSet（常時着色用）
-const PLAN_COLOR = '#1e8e3e'
 const allPlannedCountries = computed(() => {
   const s = new Set()
   for (const ps of PLAN_SETS.value) {
@@ -364,15 +364,15 @@ const groupedList = computed(() => {
 
 // 国のベース塗り色（プランまたは渡航済み/未渡航）
 function getCountryFill(propName) {
-  if (!propName) return '#dfe1e5'
+  if (!propName) return MAP_COLORS.unvisited
   for (const plan of activePlans.value) {
     if (plan.countries.includes(propName)) return plan.color
   }
-  if (isVisited(propName)) return '#d93025'
-  if (STRIKETHROUGH_NAMES.has(propName)) return '#757575'
-  if (SKIP_NAMES.has(propName)) return '#c0c4cc'
-  if (allPlannedCountries.value.has(propName)) return PLAN_COLOR
-  return '#dfe1e5'
+  if (isVisited(propName)) return MAP_COLORS.visited
+  if (STRIKETHROUGH_NAMES.has(propName)) return MAP_COLORS.strikethrough
+  if (SKIP_NAMES.has(propName)) return MAP_COLORS.skip
+  if (allPlannedCountries.value.has(propName)) return MAP_COLORS.planned
+  return MAP_COLORS.unvisited
 }
 
 // 国ごとの塗り色プロパティを付与した GeoJSON を生成
@@ -445,7 +445,7 @@ async function drawMap() {
         version: 8,
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
         sources: {},
-        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#a9cdec' } }],
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': MAP_COLORS.ocean } }],
       },
       center: [135, 35],
       zoom: 1.5,
@@ -488,7 +488,7 @@ async function drawMap() {
         type: 'line',
         source: 'countries',
         paint: {
-          'line-color': '#ffffff',
+          'line-color': MAP_COLORS.border,
           'line-width': 0.8,
         },
       })
@@ -552,7 +552,7 @@ async function drawMap() {
         paint: {
           'circle-radius': 5,
           'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': MAP_COLORS.border,
           'circle-stroke-width': 1.5,
         },
       })
@@ -570,8 +570,8 @@ async function drawMap() {
           'text-ignore-placement': true,
         },
         paint: {
-          'text-color': '#202124',
-          'text-halo-color': '#ffffff',
+          'text-color': MAP_COLORS.label,
+          'text-halo-color': MAP_COLORS.border,
           'text-halo-width': 1.5,
         },
       })
@@ -1347,7 +1347,7 @@ onUnmounted(() => {
   font-weight: 600;
 }
 .leg-popup-ticket.world { background: var(--accent-soft); color: var(--accent); }
-.leg-popup-ticket.own   { background: #e6f4ea; color: var(--success); }
+.leg-popup-ticket.own   { background: var(--success-soft); color: var(--success); }
 .leg-popup-mode {
   font-size: 0.8rem;
   color: var(--text-secondary);

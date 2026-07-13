@@ -263,7 +263,7 @@ async function doRestore(item) {
 }
 .recovery-list li.is-confirming {
   border-color: var(--danger);
-  background: #fce8e6;
+  background: var(--danger-soft);
 }
 
 .recovery-item-info {

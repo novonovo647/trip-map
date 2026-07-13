@@ -162,7 +162,7 @@ defineEmits(['close', 'enter-edit', 'toggle'])
 
 /* エラー表示 */
 .edit-error {
-  background: #fce8e6;
+  background: var(--danger-soft);
   border-left: 3px solid var(--danger);
   color: var(--danger);
   font-size: 0.8rem;
@@ -237,7 +237,7 @@ defineEmits(['close', 'enter-edit', 'toggle'])
 
 .toggle-remove-btn {
   background: none;
-  border: 1px solid #f3c0bc;
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   border-radius: 4px;
   padding: 0 5px;
@@ -247,11 +247,11 @@ defineEmits(['close', 'enter-edit', 'toggle'])
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.toggle-remove-btn:hover { background: #fce8e6; }
+.toggle-remove-btn:hover { background: var(--danger-soft); }
 
 .toggle-add-btn {
   background: none;
-  border: 1px solid #b7dfc0;
+  border: 1px solid var(--success-border);
   color: var(--success);
   border-radius: 4px;
   padding: 0 6px;
@@ -263,8 +263,8 @@ defineEmits(['close', 'enter-edit', 'toggle'])
   min-width: 22px;
   text-align: center;
 }
-.toggle-add-btn:hover { background: #e6f4ea; }
-.toggle-add-btn.active { background: #e6f4ea; border-color: var(--success); color: var(--success); }
+.toggle-add-btn:hover { background: var(--success-soft); }
+.toggle-add-btn.active { background: var(--success-soft); border-color: var(--success); color: var(--success); }
 
-.edit-item-new { background: #e6f4ea; border-radius: 4px; }
+.edit-item-new { background: var(--success-soft); border-radius: 4px; }
 </style>
