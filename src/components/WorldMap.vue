@@ -131,50 +131,22 @@
       </div>
     </Teleport>
     <!-- 国一覧モーダル -->
-    <Teleport to="body">
-      <div v-if="listMode" class="list-overlay" @click.self="closeList">
-        <div class="list-panel">
-          <div class="list-header">
-            <h2>
-              {{ listMode === 'visited' ? '渡航済み国・地域一覧' : '未渡航国・地域一覧' }}
-              <span v-if="countryEditMode" class="edit-diff-count">
-                <template v-if="countryEditAdded > 0">+{{ countryEditAdded }}</template>
-                <template v-if="countryEditRemoved > 0"> −{{ countryEditRemoved }}</template>
-              </span>
-            </h2>
-            <div class="list-header-actions">
-              <button v-if="currentUser && !countryEditMode" class="edit-mode-btn" @click="enterCountryEditMode">✎ 編集</button>
-              <template v-if="countryEditMode">
-                <span v-if="countryEditStatus !== 'idle'" class="ce-status" :class="countryEditStatus">
-                  {{ countryEditStatus === 'saving' ? '保存中…' : countryEditStatus === 'error' ? '⚠ 保存失敗' : countryEditStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
-                </span>
-                <template v-if="countryEditStatus === 'external' && countryEditorInfo">
-                  <img v-if="countryEditorInfo.photo" :src="countryEditorInfo.photo" class="ce-editor-avatar" :title="countryEditorInfo.name" referrerpolicy="no-referrer" />
-                  <span v-else class="ce-editor-name">{{ countryEditorInfo.name }}</span>
-                </template>
-              </template>
-              <button class="close-btn" @click="closeList">✕</button>
-            </div>
-          </div>
-          <div v-if="countryEditMode && countryEditError" class="edit-error">{{ countryEditError }}</div>
-          <div class="list-body">
-            <template v-for="region in REGION_ORDER" :key="region">
-              <div v-if="groupedList[region]" class="region-section">
-                <h3>{{ region }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
-                <ul>
-                  <li v-for="c in groupedList[region]" :key="c.en"
-                    :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
-                    <span>{{ c.ja }}</span>
-                    <button v-if="countryEditMode && listMode === 'visited'" class="toggle-remove-btn" @click.stop="toggleCountryEdit(c.en, c.ja)" title="渡航済みから削除">✕</button>
-                    <button v-if="countryEditMode && listMode === 'unvisited'" class="toggle-add-btn" :class="{ active: countryEditSet.has(c.en) }" @click.stop="toggleCountryEdit(c.en, c.ja)" :title="countryEditSet.has(c.en) ? '追加を取り消す' : '渡航済みに追加'">{{ countryEditSet.has(c.en) ? '✓' : '+' }}</button>
-                  </li>
-                </ul>
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <CountryListModal
+      v-if="listMode"
+      :listMode="listMode"
+      :groupedList="groupedList"
+      :countryEditMode="countryEditMode"
+      :countryEditSet="countryEditSet"
+      :countryEditStatus="countryEditStatus"
+      :countryEditorInfo="countryEditorInfo"
+      :countryEditError="countryEditError"
+      :countryEditAdded="countryEditAdded"
+      :countryEditRemoved="countryEditRemoved"
+      :canEdit="!!currentUser"
+      @close="closeList"
+      @enter-edit="enterCountryEditMode"
+      @toggle="(en, ja) => toggleCountryEdit(en, ja)"
+    />
 
     <!-- プラン UI エディタ -->
     <Teleport to="body">
@@ -201,63 +173,15 @@
     </Teleport>
 
     <!-- セット詳細モーダル -->
-    <Teleport to="body">
-      <div v-if="modalSetIndex !== null" class="list-overlay" @click.self="modalSetIndex = null">
-        <div class="list-panel set-detail-panel">
-          <div class="list-header">
-            <h2>{{ PLAN_SETS[modalSetIndex].setName }}</h2>
-            <div class="list-header-actions">
-              <button v-if="currentUser" class="edit-mode-btn" @click="openPlanEditor(modalSetIndex)">✎ 編集</button>
-              <button class="close-btn" @click="modalSetIndex = null">✕</button>
-            </div>
-          </div>
-          <div class="set-detail-body">
-            <div v-for="(plan, j) in PLAN_SETS[modalSetIndex].plans.map(p => resolvePlan(p))" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
-              <h3 class="plan-detail-toggle" :style="{ color: plan.color }" @click="togglePlan(j)">
-                <span class="plan-toggle-icon">{{ openPlans[j] ? '▾' : '▸' }}</span>
-                {{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}
-              </h3>
-              <div v-show="openPlans[j]">
-                <!-- タイムライン: 都市 / 移動エントリー混在 -->
-                <div class="city-stops">
-                  <template v-for="(item, k) in plan.cities" :key="k">
-                    <!-- 移動エントリー -->
-                    <div v-if="item._type === 'transport'" class="stop-leg">
-                      <span class="stop-leg-arrow">↓</span>
-                      <span class="stop-leg-mode">{{ { '飛行機': '✈️', '電車': '🚆', 'バス': '🚌', 'その他': '🚗' }[item.mode] ?? '✈️' }}</span>
-                      <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
-                      <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
-                      <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
-                    </div>
-                    <!-- 都市エントリー（直前が都市なら矢印を補完） -->
-                    <template v-else>
-                      <div v-if="k > 0 && plan.cities[k-1]._type === 'city'" class="stop-leg">
-                        <span class="stop-leg-arrow">↓</span>
-                      </div>
-                      <div class="city-stop">
-                        <div class="stop-header">
-                          <span class="stop-name">{{ item.name }}</span>
-                          <span v-if="item.nights" class="stop-nights">{{ item.nights }}泊</span>
-                          <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
-                        </div>
-                        <ul v-if="item.spots && item.spots.length" class="stop-spots">
-                          <li v-for="(spot, si) in item.spots" :key="si">
-                            <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
-                            <span v-else>{{ spot.name }}</span>
-                            <span v-if="spot.memo" class="spot-memo spot-memo-block" v-html="memoHtml(spot.memo)"></span>
-                          </li>
-                        </ul>
-                      </div>
-                    </template>
-                  </template>
-                </div>
-                <div class="plan-countries">{{ plan.countries.map(c => getJaName(c)).join('・') }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <SetDetailModal
+      v-if="modalSetIndex !== null"
+      :setName="PLAN_SETS[modalSetIndex].setName"
+      :plans="setDetailPlans"
+      :getCountryJa="getJaName"
+      :canEdit="!!currentUser"
+      @close="modalSetIndex = null"
+      @edit="openPlanEditor(modalSetIndex)"
+    />
 
     <!-- ドロップダウン外クリックで閉じる -->
     <Teleport to="body">
@@ -272,7 +196,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
 import {
-  REGION_ORDER, EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
+  EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
   SKIP_NAMES, NAME_MAP,
 } from '../utils/countries.js'
 import { memoHtml } from '../utils/text.js'
@@ -282,6 +206,8 @@ import { useVisitedCountries } from '../composables/useVisitedCountries.js'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import PlanManagerModal from './PlanManagerModal.vue'
+import CountryListModal from './CountryListModal.vue'
+import SetDetailModal from './SetDetailModal.vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as topojson from 'topojson-client'
@@ -832,15 +758,11 @@ function clearPlan() {
   dropdownOpen.value = false
 }
 
-const openPlans = ref([])
-
-watch(modalSetIndex, (val) => {
-  if (val !== null) openPlans.value = PLAN_SETS.value[val].plans.map(() => true)
+// セット詳細モーダルに渡す解決済みプラン配列
+const setDetailPlans = computed(() => {
+  if (modalSetIndex.value === null) return []
+  return (PLAN_SETS.value[modalSetIndex.value]?.plans ?? []).map(p => resolvePlan(p))
 })
-
-function togglePlan(j) {
-  openPlans.value[j] = !openPlans.value[j]
-}
 
 const showUpdateBanner = ref(false)
 
@@ -1496,159 +1418,6 @@ onUnmounted(() => {
 }
 .leg-popup-link:hover { text-decoration: underline; }
 
-/* 国一覧モーダル */
-.list-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(32, 33, 36, 0.5);
-  z-index: 200;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-}
-
-.list-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: min(860px, 92vw);
-  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--shadow-3);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  gap: 8px;
-}
-
-.list-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* 編集モードボタン */
-.edit-mode-btn {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #fff;
-  border-radius: 6px;
-  padding: 3px 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-.edit-mode-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-/* GitHub 保存ボタン → autosave に変更: ce-status で代替 */
-.ce-status {
-  font-size: 0.78rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.ce-status.saved    { color: var(--success); }
-.ce-status.saving   { color: var(--text-muted); }
-.ce-status.error    { color: var(--danger); }
-.ce-status.external { color: var(--accent); }
-.ce-editor-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  object-fit: cover;
-}
-.ce-editor-name {
-  font-size: 0.75rem;
-  color: var(--accent);
-}
-
-.cancel-edit-btn {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.cancel-edit-btn:hover { background: var(--bg-hover); }
-
-/* 変更数インジケータ */
-.edit-diff-count {
-  font-size: 0.75rem;
-  color: var(--success);
-  font-weight: normal;
-  margin-left: 6px;
-}
-
-/* エラー表示 */
-.edit-error {
-  background: #fce8e6;
-  border-left: 3px solid var(--danger);
-  color: var(--danger);
-  font-size: 0.8rem;
-  padding: 6px 16px;
-  flex-shrink: 0;
-  word-break: break-all;
-}
-
-/* 国リスト: リストアイテムのトグルボタン */
-.region-section ul li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.region-section ul li span { flex: 1; }
-
-.toggle-remove-btn {
-  background: none;
-  border: 1px solid #f3c0bc;
-  color: var(--danger);
-  border-radius: 4px;
-  padding: 0 5px;
-  font-size: 0.7rem;
-  cursor: pointer;
-  line-height: 1.4;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.toggle-remove-btn:hover { background: #fce8e6; }
-
-.toggle-add-btn {
-  background: none;
-  border: 1px solid #b7dfc0;
-  color: var(--success);
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 0.7rem;
-  cursor: pointer;
-  line-height: 1.4;
-  flex-shrink: 0;
-  transition: background 0.15s;
-  min-width: 22px;
-  text-align: center;
-}
-.toggle-add-btn:hover { background: #e6f4ea; }
-.toggle-add-btn.active { background: #e6f4ea; border-color: var(--success); color: var(--success); }
-
-.edit-item-new { background: #e6f4ea; border-radius: 4px; }
-
 /* GitHub 設定パネル */
 .gh-settings-panel { max-width: 420px; }
 .gh-settings-body {
@@ -1720,236 +1489,6 @@ onUnmounted(() => {
   color: var(--text-faint);
   margin: 6px 0 0;
   font-style: italic;
-}
-
-.list-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text);
-  font-weight: 500;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
-
-.list-body {
-  overflow-y: auto;
-  padding: 12px 20px 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px 20px;
-  align-content: start;
-}
-
-.region-section h3 {
-  font-size: 0.8rem;
-  color: var(--accent);
-  margin: 0 0 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-.region-count {
-  color: var(--text-faint);
-  font-weight: normal;
-}
-
-.region-section ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.region-section ul li {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  padding: 2px 0;
-  line-height: 1.4;
-}
-
-.strikethrough-item {
-  text-decoration-line: line-through;
-  text-decoration-style: double;
-  opacity: 0.45;
-}
-
-.skip-item {
-  text-decoration: line-through;
-  opacity: 0.35;
-}
-
-/* セット詳細モーダル */
-.set-detail-panel {
-  max-width: 520px;
-}
-
-.set-detail-body {
-  overflow-y: auto;
-  padding: 16px 20px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-height: calc(82vh - 60px);
-}
-
-.plan-detail {
-  border-left: 3px solid;
-  padding-left: 12px;
-}
-
-.plan-detail-toggle {
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0 0 4px;
-}
-
-.plan-detail-toggle:hover {
-  opacity: 0.85;
-}
-
-.plan-toggle-icon {
-  font-size: 0.75rem;
-  flex-shrink: 0;
-}
-
-.plan-detail h3 {
-  font-size: 0.9rem;
-  margin: 0 0 8px;
-}
-
-/* 都市タイムライン */
-.city-stops {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 6px;
-}
-
-.city-stop {
-  display: flex;
-  flex-direction: column;
-}
-
-.stop-leg {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0 2px 4px;
-}
-
-.stop-leg-arrow {
-  color: var(--text-faint);
-  font-size: 0.75rem;
-  line-height: 1;
-}
-
-.stop-leg-mode {
-  font-size: 0.85rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.stop-leg-link,
-.stop-leg-text {
-  font-size: 0.72rem;
-  color: var(--accent);
-}
-
-.stop-leg-link {
-  text-decoration: underline dotted;
-}
-
-.stop-leg-link:hover {
-  color: var(--accent-hover);
-}
-
-.stop-header {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 1px 0;
-}
-
-.stop-name {
-  font-size: 0.82rem;
-  color: var(--text);
-  font-weight: 500;
-}
-
-.stop-nights {
-  font-size: 0.7rem;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
-.stop-spots {
-  list-style: none;
-  margin: 2px 0 2px 12px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.stop-spots li {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.stop-spots li::before {
-  content: '📍 ';
-  font-size: 0.65rem;
-}
-
-.stop-spots a {
-  color: var(--accent);
-  text-decoration: underline dotted;
-}
-
-.stop-spots a:hover {
-  color: var(--accent-hover);
-}
-
-.stop-memo {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-style: italic;
-  margin: 1px 0;
-  padding: 0;
-}
-
-.spot-memo {
-  font-size: 0.68rem;
-  color: var(--text-faint);
-  font-style: italic;
-  margin-left: 4px;
-}
-
-.spot-memo-block {
-  display: block;
-  margin-left: 0;
-  margin-top: 1px;
-}
-
-.plan-countries {
-  font-size: 0.75rem;
-  color: var(--accent);
-  margin-top: 2px;
 }
 
 .set-info-btn {
