@@ -5,6 +5,9 @@ import { isTransport } from '../utils/plan.js'
 
 const CACHE_KEY = 'trip-geo-cache'
 
+// Nominatim 利用規約（最大 1req/秒）を守るための待機
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 /**
  * 都市名 → 座標のジオコーディングを扱う Composable。
  * - 座標は reactive な cityData に蓄積（localStorage + Firestore geodata + Nominatim）
@@ -49,8 +52,12 @@ export function useGeocoding() {
   // 都市名の配列のうち未取得のものをジオコードし、cityData/localStorage/Firestore に反映
   async function geocodeCityNames(names) {
     const updates = {}
+    let first = true
     for (const name of names) {
       if (!name || cityData[name]) continue
+      // 2件目以降は 1req/秒 を守るため待機（Nominatim にブロックされないように）
+      if (!first) await sleep(1100)
+      first = false
       const result = await geocodeCity(name)
       if (result) {
         cityData[name] = result   // reactive → 依存する computed が自動再計算

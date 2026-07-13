@@ -324,7 +324,7 @@ function resolvePlan(plan) {
         return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界一周券', mode: c.mode ?? '飛行機' }
       }
       const coords = cityData[c.name]?.coords ?? null
-      if (!coords) return null
+      // 座標未取得でも一覧には表示する（地図描画のみ coords を必要とする）
       return {
         _type: 'city',
         name:   c.name,
@@ -361,7 +361,11 @@ const allPlannedCountries = computed(() => {
       for (const c of plan.cities) {
         if (isTransport(c)) continue
         const country = c.country
-        if (country) s.add(country)
+        if (country) {
+          s.add(country)
+          // 10mデータの properties.name と名称が異なる国は変換名も登録（例: United States → …of America）
+          if (NAME_MAP[country]) s.add(NAME_MAP[country])
+        }
       }
     }
   }
@@ -780,7 +784,7 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
     }
   }
 
-  const cities = plan.cities.filter(i => i._type === 'city')
+  const cities = plan.cities.filter(i => i._type === 'city' && i.coords)
 
   // アーク GeoJSON（renderWorldCopies で自動3コピー）
   for (let i = 0; i < cities.length - 1; i++) {
