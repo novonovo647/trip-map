@@ -13,7 +13,7 @@
         </div>
 
         <p class="recovery-note">
-          過去の保存状態に戻せます。復旧しても<strong>現在のデータは履歴に退避</strong>されるため、やり直しできます。
+          過去{{ MAX_HISTORY }}件の保存状態に戻せます。復旧しても<strong>現在のデータは履歴に退避</strong>されるため、やり直しできます。
         </p>
 
         <div class="recovery-body">
@@ -54,7 +54,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { loadHistory, saveWithHistory } from '../lib/persistence.js'
+import { loadHistory, saveWithHistory, MAX_HISTORY } from '../lib/persistence.js'
 import { auth } from '../firebase.js'
 
 defineEmits(['close'])

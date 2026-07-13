@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase.js'
 
 // 世代バックアップの保持件数（最新から N 件を残す）
-const MAX_HISTORY = 30
+export const MAX_HISTORY = 10
 
 /**
  * tripdata/{docId} を上書き保存する前に、現行内容を
