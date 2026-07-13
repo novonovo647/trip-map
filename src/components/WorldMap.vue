@@ -32,7 +32,6 @@
       <div class="burger-wrap">
         <button class="burger-btn" @click.stop="burgerOpen = !burgerOpen">☰</button>
         <div v-if="burgerOpen" class="burger-menu">
-          <p class="burger-hint">スクロール: 拡大・縮小　ドラッグ: 移動</p>
           <template v-if="currentUser">
             <span class="burger-user">👤 {{ currentUser.displayName }}</span>
             <button class="burger-gh-btn" @click="showRecovery = true; burgerOpen = false">🕘 データ復旧</button>
