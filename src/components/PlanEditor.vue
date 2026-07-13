@@ -133,11 +133,11 @@
                               />
                               <div
                                 v-if="countryACState[`${pi}-${ci}`]?.open &&
-                                  (cityCountryCandidates[`${pi}-${ci}`]?.length ||
+                                  (hasCands(`${pi}-${ci}`) ||
                                    countryACState[`${pi}-${ci}`]?.suggestions?.length)"
                                 class="pe-country-dropdown"
                               >
-                                <template v-if="cityCountryCandidates[`${pi}-${ci}`]?.length">
+                                <template v-if="hasCands(`${pi}-${ci}`)">
                                   <div class="pe-country-section-label">{{ item.name }} の候補</div>
                                   <div
                                     v-for="s in cityCountryCandidates[`${pi}-${ci}`]"
@@ -148,7 +148,7 @@
                                   <div v-if="countryACState[`${pi}-${ci}`]?.suggestions?.length" class="pe-country-divider"></div>
                                 </template>
                                 <template v-if="countryACState[`${pi}-${ci}`]?.suggestions?.length">
-                                  <div v-if="cityCountryCandidates[`${pi}-${ci}`]?.length" class="pe-country-section-label">すべての国</div>
+                                  <div v-if="hasCands(`${pi}-${ci}`)" class="pe-country-section-label">すべての国</div>
                                   <div
                                     v-for="s in countryACState[`${pi}-${ci}`].suggestions"
                                     :key="s.en"
@@ -589,6 +589,12 @@ const NOMINATIM_FIX = {
 // 都市名に対応する候補国: key→[{en,ja}] | 'loading' | null
 const cityCountryCandidates = reactive({})
 const _cityNameTimers = {}
+
+// 候補が配列（実データ）として存在するか。'loading' 文字列を length で誤判定しないためのガード
+function hasCands(key) {
+  const c = cityCountryCandidates[key]
+  return Array.isArray(c) && c.length > 0
+}
 
 function onCityNameInput(key, item) {
   clearTimeout(_cityNameTimers[key])
