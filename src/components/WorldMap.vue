@@ -272,6 +272,11 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { saveWithHistory } from '../lib/persistence.js'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
+import {
+  REGION_ORDER, EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
+  SKIP_NAMES, NAME_MAP, MISSING_EN_MAP,
+} from '../utils/countries.js'
+import { memoHtml } from '../utils/text.js'
 import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
@@ -333,15 +338,6 @@ const dropdownOpen  = ref(false)
 let mapInstance = null
 let mapReady = false
 let countriesGeoJSON = null
-
-function memoHtml(text) {
-  if (!text) return ''
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/¥n|\\n|\n/g, '<br>')
-}
 
 function resolvePlan(plan) {
   if (!plan) return null
@@ -454,35 +450,6 @@ watch([selectedSet, selectedPlan], async ([si, planSet]) => {
   }
 })
 
-const REGION_ORDER = [
-  '東アジア', '東南アジア', '南アジア', '中央アジア',
-  '中東・西アジア', 'ヨーロッパ', 'アフリカ',
-  '北米・中米', 'カリブ海', '南アメリカ', 'オセアニア', 'その他'
-]
-
-// 一覧・カウントから除外する地域（実質的に渡航履歴管理の対象外）
-const EXCLUDE_FROM_LIST = new Set([
-  'Akrotiri',                  // アクロティリ（英軍基地）
-  'Ashmore and Cartier Is.',   // アシュモア・カルティエ諸島
-  'Br. Indian Ocean Ter.',     // 英領インド洋地域
-  'Indian Ocean Ter.',         // インド洋地域
-  'Cyprus U.N. Buffer Zone',   // キプロス国連緩衝地帯
-  'USNB Guantanamo Bay',       // グアンタナモ湾米軍基地
-  'Clipperton I.',             // クリッパートン島
-  'Coral Sea Is.',             // コーラル海諸島
-  'S. Geo. and the Is.',       // サウスジョージア・南サンドウィッチ諸島
-  'Siachen Glacier',           // シアチェン氷河
-  'Scarborough Reef',          // スカボロー礁
-  'Serranilla Bank',           // セラニーリャ礁
-  'Dhekelia',                  // デケリア（英軍基地）
-  'Heard I. and McDonald Is.', // ハード島・マクドナルド諸島
-  'Baikonur',                  // バイコヌール
-  'Bajo Nuevo Bank',           // バホ・ヌエボ礁
-  'Fr. S. Antarctic Lands',    // フランス南方・南極地域
-  'Spratly Is.',               // 南沙諸島
-  'U.S. Minor Outlying Is.',   // 米国領有小離島
-])
-
 const groupedList = computed(() => {
   if (!listMode.value || allFeatureNames.value.length === 0) return {}
   visitedVersion.value   // 保存後の強制再計算
@@ -505,31 +472,6 @@ const groupedList = computed(() => {
   }
   return result
 })
-
-// 渡航困難国（二重取り消し線表示・マップ濃いグレー）
-const STRIKETHROUGH_NAMES = new Set([
-  'Haiti', 'Ukraine', 'Afghanistan', 'Yemen', 'Iraq', 'Iran', 'Syria', 'Lebanon',
-  'Sudan', 'Somalia', 'Central African Rep.', 'Burkina Faso', 'Mali', 'S. Sudan', 'Libya',
-  'North Korea', 'Cuba',
-  'Pakistan', 'Somaliland', 'Palestine',
-  'Niger',
-  'Nigeria', 'Eritrea', 'Burundi', 'Belarus',
-])
-
-// 行かない国（取り消し線表示・マップ薄いグレー）
-const SKIP_NAMES = new Set([
-  'Saudi Arabia', 'Brunei', 'Kuwait',
-])
-
-// CSV英語名 → 10mデータのproperties.name への変換（差異のある分のみ）
-const NAME_MAP = {
-  'United States': 'United States of America',
-  'Czech Republic': 'Czechia',
-  'FYR Macedonia': 'Macedonia',
-  'Bosnia and Herzegovina': 'Bosnia and Herz.',
-  'Cook Islands': 'Cook Is.',
-  'Slovak Republic': 'Slovakia',
-}
 
 function isVisited(propName) {
   if (!propName) return false
@@ -561,13 +503,6 @@ function getJaName(propName) {
     if (mappedName === propName && jaMapData[csvName]) return jaMapData[csvName]
   }
   return countryNamesJa[propName] || propName
-}
-
-// CSVで英語名が空欄の地域の補完マッピング
-const MISSING_EN_MAP = {
-  'ニューカレドニア': 'New Caledonia',
-  'ジプラルタル': 'Gibraltar',
-  'スコットランド': 'Scotland',
 }
 
 function loadCSV(text) {
