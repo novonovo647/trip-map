@@ -268,7 +268,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
-import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { saveWithHistory } from '../lib/persistence.js'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
@@ -278,6 +278,7 @@ import {
 } from '../utils/countries.js'
 import { memoHtml } from '../utils/text.js'
 import { useAuth } from '../composables/useAuth.js'
+import { useGeocoding } from '../composables/useGeocoding.js'
 import { db, auth } from '../firebase.js'
 import PlanEditor from './PlanEditor.vue'
 import PlanManagerModal from './PlanManagerModal.vue'
@@ -291,32 +292,7 @@ import countryNamesJa from '../assets/country_names_ja.json'
 import countryRegions from '../assets/country_regions.json'
 
 // 都市データ: ランタイム取得キャッシュ (localStorage) + Firestore geodata で構築
-const _localCache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
-const cityData = reactive({ ..._localCache })
-
-async function geocodeCity(name) {
-  try {
-    const url = 'https://nominatim.openstreetmap.org/search'
-      + `?q=${encodeURIComponent(name)}&format=json&limit=1&addressdetails=1`
-    const res  = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0', 'Accept-Language': 'en' } })
-    const data = await res.json()
-    if (!data.length) return null
-    const item = data[0]
-    return { coords: [parseFloat(item.lon), parseFloat(item.lat)] }
-  } catch {
-    return null
-  }
-}
-
-async function saveGeoToFirestore(updates) {
-  try {
-    const { getDoc } = await import('firebase/firestore')
-    const ref = doc(db, 'tripdata', 'geodata')
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().cities ?? {}) : {}
-    await setDoc(ref, { cities: { ...existing, ...updates } }, { merge: true })
-  } catch { /* Firestore 保存失敗は無視 */ }
-}
+const { cityData, geocodeSets, geocodePlans, mergeGeoData } = useGeocoding()
 
 const PLAN_SETS = ref([])
 
@@ -402,52 +378,16 @@ const plannedCount = computed(() => {
 })
 
 // 全プランの未知都市を一括ジオコード
-async function geocodeAllMissingCities() {
-  const updates = {}
-  for (const ps of PLAN_SETS.value) {
-    for (const plan of ps.plans) {
-      for (const c of plan.cities) {
-        if (isTransport(c) || cityData[c.name]) continue
-        const result = await geocodeCity(c.name)
-        if (result) {
-          cityData[c.name] = result
-          updates[c.name] = result
-        }
-      }
-    }
-  }
-  if (Object.keys(updates).length > 0) {
-    const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
-    Object.assign(cache, updates)
-    localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
-    saveGeoToFirestore(updates)
-  }
-}
-
 // PLAN_SETS が変わったとき（Firestore 同期含む）全都市をジオコード
-watch(PLAN_SETS, () => geocodeAllMissingCities(), { deep: true })
+watch(PLAN_SETS, () => geocodeSets(PLAN_SETS.value), { deep: true })
 
 // 選択プランが変わったとき、未知の都市を Nominatim で自動取得
-watch([selectedSet, selectedPlan], async ([si, planSet]) => {
+watch([selectedSet, selectedPlan], ([si, planSet]) => {
   if (si === null || planSet.size === 0) return
-  for (const pi of planSet) {
-    const plan = PLAN_SETS.value[si]?.plans[pi]
-    if (!plan) continue
-    const missing = plan.cities
-      .filter(c => !isTransport(c))
-      .map(c => c.name)
-      .filter(name => !cityData[name])
-    for (const name of missing) {
-      const result = await geocodeCity(name)
-      if (result) {
-        cityData[name] = result  // reactive → activePlans が自動再計算される
-        const cache = JSON.parse(localStorage.getItem('trip-geo-cache') || '{}')
-        cache[name] = result
-        localStorage.setItem('trip-geo-cache', JSON.stringify(cache))
-        saveGeoToFirestore({ [name]: result })
-      }
-    }
-  }
+  const plans = [...planSet]
+    .map(pi => PLAN_SETS.value[si]?.plans[pi])
+    .filter(Boolean)
+  geocodePlans(plans)
 })
 
 const groupedList = computed(() => {
@@ -1063,10 +1003,7 @@ function startFirestoreListeners() {
   let unsubGeodata = null
   unsubGeodata = onSnapshot(doc(db, 'tripdata', 'geodata'), (snap) => {
     if (snap.exists()) {
-      const cities = snap.data().cities ?? {}
-      for (const [name, val] of Object.entries(cities)) {
-        cityData[name] = val
-      }
+      mergeGeoData(snap.data().cities)
     }
   })
   // プランデータ
