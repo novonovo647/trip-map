@@ -4,14 +4,13 @@ import { auth } from '../firebase.js'
 
 /**
  * Google 認証を扱う Composable。
- * ホワイトリスト（allowedEmails）外のアカウントは自動ログアウトする。
+ * アクセス制御は Firestore セキュリティルールで行う（クライアント側では制限しない）。
  *
  * @param {object}   options
- * @param {string[]} options.allowedEmails ログインを許可するメールアドレス一覧（空なら全許可）
  * @param {(user: object) => void} [options.onLogin]  ログイン確定時に呼ばれる
  * @param {() => void}              [options.onLogout] ログアウト確定時に呼ばれる
  */
-export function useAuth({ allowedEmails = [], onLogin, onLogout } = {}) {
+export function useAuth({ onLogin, onLogout } = {}) {
   const currentUser = ref(null)
   const authReady   = ref(false)
   const loginError  = ref('')
@@ -35,14 +34,6 @@ export function useAuth({ allowedEmails = [], onLogin, onLogout } = {}) {
   // 認証状態の監視を開始
   function start() {
     unsub = onAuthStateChanged(auth, async user => {
-      // ホワイトリスト外のアカウントはログアウト
-      if (user && allowedEmails.length && !allowedEmails.includes(user.email)) {
-        await fbSignOut(auth)
-        loginError.value  = 'このアカウントはアクセス権がありません'
-        currentUser.value = null
-        authReady.value   = true
-        return
-      }
       currentUser.value = user
       authReady.value   = true
       if (user) onLogin?.(user)

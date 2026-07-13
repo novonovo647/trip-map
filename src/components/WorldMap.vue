@@ -797,10 +797,7 @@ function addTransportIcons(map) {
 function onUpdateAvailable() { showUpdateBanner.value = true }
 
 // ─── 認証 ────────────────────────────────────────────
-const ALLOWED_EMAILS = ['user1@example.com', 'user2@example.com']
-
 const { currentUser, authReady, loginError, signIn, handleSignOut, start: startAuth, stop: stopAuth } = useAuth({
-  allowedEmails: ALLOWED_EMAILS,
   onLogin:  () => { startFirestoreListeners(); startCountriesSync() },
   onLogout: () => {
     unsubPlans?.(); unsubPlans = null
@@ -857,6 +854,12 @@ function startFirestoreListeners() {
         planExternalData.value = JSON.parse(JSON.stringify(d.sets))
         planEditorInfo.value   = { name: d.editorName || '他のユーザー', photo: d.editorPhoto || null }
       }
+    }
+  }, (err) => {
+    // アクセス権はFirestoreルールで制御。拒否されたらメッセージ表示＋ログアウト
+    if (err.code === 'permission-denied') {
+      loginError.value = 'このアカウントはアクセス権がありません'
+      handleSignOut()
     }
   })
 }
