@@ -740,11 +740,6 @@ function selectSetFromDD(si) {
   dropdownOpen.value = false
 }
 
-function selectSet(i) {
-  selectedSet.value = selectedSet.value === i ? null : i
-  selectedPlan.value = new Set()
-}
-
 function togglePlanTab(j) {
   const next = new Set(selectedPlan.value)
   if (next.has(j)) next.delete(j)
@@ -1119,13 +1114,6 @@ onUnmounted(() => {
   box-shadow: var(--shadow-3);
   padding: 4px 0;
 }
-.dropdown-group {
-  font-size: 0.68rem;
-  color: var(--accent);
-  padding: 8px 14px 3px;
-  letter-spacing: 0.05em;
-  border-top: 1px solid var(--border);
-}
 .dropdown-item {
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -1167,58 +1155,6 @@ onUnmounted(() => {
 }
 .manage-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-
-/* プランナビボタン */
-.plan-nav {
-  width: 100%;
-  height: 28px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  flex-shrink: 0;
-}
-.plan-nav::-webkit-scrollbar { display: none; }
-.plan-nav-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 100%;
-  height: 100%;
-  justify-content: center;
-  padding: 0 4px;
-  box-sizing: border-box;
-}
-.plan-nav-arrow {
-  color: var(--text-faint);
-  font-size: 1.1rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.set-tab {
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 8px 3px 10px;
-  font-size: 0.77rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.set-tab:hover { background: var(--bg-hover); color: var(--text); }
-.set-tab.active { background: var(--bg-selected); color: var(--accent); border-color: var(--accent); font-weight: 600; }
-.set-info-btn {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0 2px;
-  border-radius: 3px;
-  transition: color 0.2s;
-}
-.set-info-btn:hover { color: var(--accent); }
 .plan-tab {
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -1418,41 +1354,6 @@ onUnmounted(() => {
 }
 .leg-popup-link:hover { text-decoration: underline; }
 
-/* GitHub 設定パネル */
-.gh-settings-panel { max-width: 420px; }
-.gh-settings-body {
-  padding: 16px 20px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.gh-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-.gh-input {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  padding: 6px 10px;
-  font-size: 0.85rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.gh-input:focus { border-color: var(--accent); }
-.gh-pat { font-family: monospace; letter-spacing: 0.05em; }
-.gh-hint { color: var(--text-faint); font-size: 0.72rem; margin-top: 2px; }
-.gh-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 4px;
-}
-
 /* バーガーメニュー内のボタン */
 .burger-gh-btn {
   background: none;
@@ -1466,48 +1367,4 @@ onUnmounted(() => {
   transition: background 0.2s;
 }
 .burger-gh-btn:hover { background: var(--bg-selected); }
-
-/* プラン JSON エディタ */
-.plan-json-editor {
-  width: 100%;
-  min-height: 340px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  padding: 10px 12px;
-  resize: vertical;
-  outline: none;
-  box-sizing: border-box;
-}
-.plan-json-editor:focus { border-color: var(--accent); }
-.edit-note {
-  font-size: 0.75rem;
-  color: var(--text-faint);
-  margin: 6px 0 0;
-  font-style: italic;
-}
-
-.set-info-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 0.65rem;
-  font-style: normal;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.set-info-btn:hover {
-  background: var(--accent);
-  color: #fff;
-}
 </style>
