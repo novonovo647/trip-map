@@ -28,6 +28,12 @@ export const EXCLUDE_FROM_LIST = new Set([
   'Fr. S. Antarctic Lands',    // フランス南方・南極地域
   'Spratly Is.',               // 南沙諸島
   'U.S. Minor Outlying Is.',   // 米国領有小離島
+
+  'Åland Islands',  // オーランド諸島
+  'Guernsey',      // ガーンジー
+  'Jersey',        // ジャージー
+  'Faroe Islands', // フェロー諸島
+  'Isle of Man', // マン島
 ])
 
 // 渡航困難国（二重取り消し線表示・マップ濃いグレー）
