@@ -28,7 +28,7 @@
         <div class="list-body">
           <template v-for="region in REGION_ORDER" :key="region">
             <div v-if="groupedList[region]" class="region-section">
-              <h3>{{ region }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
+              <h3>{{ REGION_LABELS[region] }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
               <ul>
                 <li v-for="c in groupedList[region]" :key="c.en"
                   :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { REGION_ORDER } from '../utils/countries.js'
+import { REGION_ORDER, REGION_LABELS } from '../utils/countries.js'
 
 defineProps({
   listMode:           { type: String,  default: null },

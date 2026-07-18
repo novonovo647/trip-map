@@ -351,7 +351,7 @@ const groupedList = computed(() => {
     if (listMode.value === 'visited'   &&  !isV) continue
     if (listMode.value === 'unvisited' &&   isV) continue
     if (listMode.value === 'unvisited' && name === 'Japan') continue
-    const region = countryRegions[name] || 'その他'
+    const region = countryRegions[name] || 'other'
     if (!result[region]) result[region] = []
     result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name) })
   }

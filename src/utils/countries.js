@@ -1,13 +1,27 @@
 // 国・地域に関する定数（純粋データ・UI/Firestore 非依存）
 
-// 一覧の地域表示順
-export const REGION_ORDER = [
-  '東アジア', '東南アジア', '南アジア', '中央アジア',
-  'オセアニア',
-  '中東・西アジア・コーカサス', 
-  'ヨーロッパ', 'アフリカ',
-  '北米・中米', 'カリブ海', '南アメリカ', 'その他',
+// 地域定義: key = 表示に依存しない不変ID（country_regions.json の値と一致）
+//           label = 画面表示名（自由に変更可能）
+export const REGIONS = [
+  { key: 'east-asia',      label: '東アジア' },
+  { key: 'southeast-asia', label: '東南アジア' },
+  { key: 'south-asia',     label: '南アジア' },
+  { key: 'central-asia',   label: '中央アジア' },
+  { key: 'oceania',        label: 'オセアニア' },
+  { key: 'middle-east',    label: '中東・西アジア・コーカサス' },
+  { key: 'europe',         label: 'ヨーロッパ' },
+  { key: 'africa',         label: 'アフリカ' },
+  { key: 'north-america',  label: '北米・中米' },
+  { key: 'caribbean',      label: 'カリブ海' },
+  { key: 'south-america',  label: '南アメリカ' },
+  { key: 'other',          label: 'その他' },
 ]
+
+// 一覧の地域表示順（グループ化キーの順序）
+export const REGION_ORDER = REGIONS.map(r => r.key)
+
+// 地域キー → 表示名
+export const REGION_LABELS = Object.fromEntries(REGIONS.map(r => [r.key, r.label]))
 
 // 一覧・カウントから除外する地域（実質的に渡航履歴管理の対象外）
 export const EXCLUDE_FROM_LIST = new Set([
