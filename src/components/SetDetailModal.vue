@@ -22,7 +22,7 @@
                   <!-- 移動エントリー -->
                   <div v-if="item._type === 'transport'" class="stop-leg">
                     <span class="stop-leg-arrow">↓</span>
-                    <span class="stop-leg-mode">{{ { '飛行機': '✈️', '電車': '🚆', 'バス': '🚌', 'その他': '🚗' }[item.mode] ?? '✈️' }}</span>
+                    <span class="stop-leg-mode">{{ modeEmoji(item.mode) }}</span>
                     <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
                     <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
                     <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
@@ -61,6 +61,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { memoHtml } from '../utils/text.js'
+import { modeEmoji } from '../utils/transport.js'
 
 const props = defineProps({
   setName:     { type: String,   default: '' },

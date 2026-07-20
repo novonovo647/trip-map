@@ -205,14 +205,10 @@
                       <div class="pe-transport-fields">
                         <div class="pe-tr-selects">
                           <select v-model="item.ticketType" class="pe-tr-select">
-                            <option value="世界一周券">世界一周券</option>
-                            <option value="自己手配">自己手配</option>
+                            <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
                           </select>
                           <select v-model="item.mode" class="pe-tr-select">
-                            <option value="飛行機">✈ 飛行機</option>
-                            <option value="電車">🚆 電車</option>
-                            <option value="バス">🚌 バス</option>
-                            <option value="その他">🚗 その他</option>
+                            <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
                           </select>
                         </div>
                         <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
@@ -252,6 +248,7 @@ import { ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { auth } from '../firebase.js'
 import { saveWithHistory } from '../lib/persistence.js'
 import { isCity } from '../utils/plan.js'
+import { TRANSPORT_MODES, TICKET_TYPES, DEFAULT_MODE, DEFAULT_TICKET } from '../utils/transport.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
@@ -543,7 +540,7 @@ function addCity(plan) {
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', url: '', memo: '', ticketType: '世界一周券', mode: '飛行機' })
+  plan.cities.push({ transport: '', url: '', memo: '', ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
 }
 
 function deleteItem(cities, ci) {

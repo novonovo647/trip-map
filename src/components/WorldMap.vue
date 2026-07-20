@@ -119,8 +119,8 @@
           <button class="city-popup-close" @click="legPopup.visible = false">✕</button>
         </div>
         <div class="leg-popup-meta">
-          <span class="leg-popup-ticket" :class="legPopup.ticketType === '自己手配' ? 'own' : 'world'">{{ legPopup.ticketType ?? '世界一周券' }}</span>
-          <span class="leg-popup-mode">{{ { '飛行機': '✈ 飛行機', '電車': '🚆 電車', 'バス': '🚌 バス', 'その他': '🚗 その他' }[legPopup.mode] ?? legPopup.mode }}</span>
+          <span class="leg-popup-ticket" :class="legPopup.ticketType === '自己手配' ? 'own' : 'world'">{{ legPopup.ticketType ?? DEFAULT_TICKET }}</span>
+          <span class="leg-popup-mode">{{ modeLabel(legPopup.mode) }}</span>
         </div>
         <div v-if="legPopup.transport" class="leg-popup-transport">
           <a v-if="legPopup.url" :href="legPopup.url" target="_blank" rel="noopener" class="leg-popup-link">{{ legPopup.transport }}</a>
@@ -201,6 +201,7 @@ import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
 import { isTransport } from '../utils/plan.js'
+import { TRANSPORT_MODES, DEFAULT_MODE, DEFAULT_TICKET, modeLabel } from '../utils/transport.js'
 import { MAP_COLORS } from '../utils/mapColors.js'
 import {
   EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
@@ -266,7 +267,7 @@ function resolvePlan(plan) {
     .map(c => {
       if (isTransport(c)) {
         // 移動エントリー（transport のみ）
-        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? '世界一周券', mode: c.mode ?? '飛行機' }
+        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? DEFAULT_TICKET, mode: c.mode ?? DEFAULT_MODE }
       }
       const coords = cityData[c.name]?.coords ?? null
       // 座標未取得でも一覧には表示する（地図描画のみ coords を必要とする）
@@ -530,7 +531,7 @@ async function drawMap() {
         source: 'arcs',
         layout: {
           'symbol-placement': 'line-center',
-          'icon-image': ['concat', 'mode-', ['coalesce', ['get', 'mode'], '飛行機']],
+          'icon-image': ['concat', 'mode-', ['coalesce', ['get', 'mode'], DEFAULT_MODE]],
           'icon-size': 1,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
@@ -605,8 +606,8 @@ async function drawMap() {
         legPopup.transport  = props.transport  || null
         legPopup.url        = props.url        || null
         legPopup.memo       = props.memo       || null
-        legPopup.ticketType = props.ticketType || '世界一周券'
-        legPopup.mode       = props.mode       || '飛行機'
+        legPopup.ticketType = props.ticketType || DEFAULT_TICKET
+        legPopup.mode       = props.mode       || DEFAULT_MODE
       }
       mapInstance.on('click', 'arc-lines-world', handleArcClick)
       mapInstance.on('click', 'arc-lines-own',   handleArcClick)
@@ -714,8 +715,8 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
         transport:  t?.transport  ?? null,
         url:        t?.url        ?? null,
         memo:       t?.memo       ?? null,
-        ticketType: t?.ticketType ?? '世界一周券',
-        mode:       t?.mode       ?? '飛行機',
+        ticketType: t?.ticketType ?? DEFAULT_TICKET,
+        mode:       t?.mode       ?? DEFAULT_MODE,
       },
       geometry: { type: 'LineString', coordinates: coords },
     })
@@ -774,12 +775,9 @@ function reloadApp() { window.location.reload() }
 // \u79fb\u52d5\u624b\u6bb5\u30a2\u30a4\u30b3\u30f3\u3092 canvas \u3067\u63cf\u753b\u3057\u3066 MapLibre \u306e\u30b9\u30d7\u30e9\u30a4\u30c8\u306b\u767b\u9332
 function addTransportIcons(map) {
   const SIZE = 30
-  const ICONS = {
-    'mode-\u98db\u884c\u6a5f': '\u2708\ufe0f',
-    'mode-\u96fb\u8eca':   '\ud83d\ude86',
-    'mode-\u30d0\u30b9':   '\ud83d\ude8c',
-    'mode-\u305d\u306e\u4ed6': '\ud83d\ude97',
-  }
+  const ICONS = Object.fromEntries(
+    TRANSPORT_MODES.map(m => [`mode-${m.value}`, m.emoji])
+  )
   for (const [name, emoji] of Object.entries(ICONS)) {
     const canvas = document.createElement('canvas')
     canvas.width  = SIZE
