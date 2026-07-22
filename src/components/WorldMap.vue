@@ -101,6 +101,16 @@
           <button class="city-popup-close" @click="cityPopup.visible = false">✕</button>
         </div>
         <div v-if="cityPopup.memo" class="city-popup-memo" v-html="memoHtml(cityPopup.memo)"></div>
+        <ul v-if="cityPopup.hotels && cityPopup.hotels.length" class="city-popup-hotels">
+          <li v-for="(hotel, hi) in cityPopup.hotels" :key="hi">
+            <span class="city-popup-hotel-icon">🏨</span>
+            <a v-if="hotel.url" :href="hotel.url" target="_blank" rel="noopener">{{ hotel.name }}</a>
+            <span v-else>{{ hotel.name }}</span>
+            <span v-if="hotel.nights" class="city-popup-hotel-meta">{{ hotel.nights }}泊</span>
+            <span v-if="hotel.price" class="city-popup-hotel-meta">{{ formatYen(hotel.price) }}</span>
+            <span v-if="hotel.memo" class="city-popup-spot-memo" v-html="memoHtml(hotel.memo)"></span>
+          </li>
+        </ul>
         <ul v-if="cityPopup.spots && cityPopup.spots.length" class="city-popup-spots">
           <li v-for="(spot, si) in cityPopup.spots" :key="si">
             <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
@@ -108,7 +118,7 @@
             <span v-if="spot.memo" class="city-popup-spot-memo" v-html="memoHtml(spot.memo)"></span>
           </li>
         </ul>
-        <p v-if="!cityPopup.memo && (!cityPopup.spots || !cityPopup.spots.length)" class="city-popup-empty">詳細情報なし</p>
+        <p v-if="!cityPopup.memo && (!cityPopup.hotels || !cityPopup.hotels.length) && (!cityPopup.spots || !cityPopup.spots.length)" class="city-popup-empty">詳細情報なし</p>
       </div>
     </Teleport>
     <!-- 移動ポップアップ (アーククリック) -->
@@ -126,8 +136,9 @@
           <a v-if="legPopup.url" :href="legPopup.url" target="_blank" rel="noopener" class="leg-popup-link">{{ legPopup.transport }}</a>
           <span v-else>{{ legPopup.transport }}</span>
         </div>
+        <div v-if="legPopup.price" class="leg-popup-price">💴 {{ formatYen(legPopup.price) }}</div>
         <div v-if="legPopup.memo" class="city-popup-memo" v-html="memoHtml(legPopup.memo)"></div>
-        <p v-if="!legPopup.transport && !legPopup.memo" class="city-popup-empty">移動情報なし</p>
+        <p v-if="!legPopup.transport && !legPopup.memo && !legPopup.price" class="city-popup-empty">移動情報なし</p>
       </div>
     </Teleport>
     <!-- 国一覧モーダル -->
@@ -207,7 +218,7 @@ import {
   EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
   SKIP_NAMES, NAME_MAP,
 } from '../utils/countries.js'
-import { memoHtml } from '../utils/text.js'
+import { memoHtml, formatYen } from '../utils/text.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useGeocoding } from '../composables/useGeocoding.js'
 import { useVisitedCountries } from '../composables/useVisitedCountries.js'
@@ -248,8 +259,8 @@ const mapRef = ref(null)
 const allFeatureNames = ref([])  // drawMap() 後に全フィーチャー名を格納
 const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に確定）
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
-const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [] })
-const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null, ticketType: null, mode: null })
+const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [], hotels: [] })
+const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null, ticketType: null, mode: null, price: null })
 const listMode = ref(null)   // null | 'visited' | 'unvisited'
 const selectedSet   = ref(null) // null | セットindex
 const selectedPlan  = ref(new Set()) // Set<number> 選択中のプランindex（セット内）
@@ -267,7 +278,7 @@ function resolvePlan(plan) {
     .map(c => {
       if (isTransport(c)) {
         // 移動エントリー（transport のみ）
-        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, ticketType: c.ticketType ?? DEFAULT_TICKET, mode: c.mode ?? DEFAULT_MODE }
+        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, price: c.price ?? null, ticketType: c.ticketType ?? DEFAULT_TICKET, mode: c.mode ?? DEFAULT_MODE }
       }
       const coords = cityData[c.name]?.coords ?? null
       // 座標未取得でも一覧には表示する（地図描画のみ coords を必要とする）
@@ -278,6 +289,7 @@ function resolvePlan(plan) {
         nights: c.nights ?? null,
         memo:   c.memo   ?? null,
         spots:  c.spots  ?? [],
+        hotels: c.hotels ?? [],
         country: c.country || null,
       }
     })
@@ -608,6 +620,7 @@ async function drawMap() {
         legPopup.memo       = props.memo       || null
         legPopup.ticketType = props.ticketType || DEFAULT_TICKET
         legPopup.mode       = props.mode       || DEFAULT_MODE
+        legPopup.price      = props.price      || null
       }
       mapInstance.on('click', 'arc-lines-world', handleArcClick)
       mapInstance.on('click', 'arc-lines-own',   handleArcClick)
@@ -625,6 +638,7 @@ async function drawMap() {
         cityPopup.nights  = props.nights || null
         cityPopup.memo    = props.memo   || null
         cityPopup.spots   = JSON.parse(props.spots || '[]')
+        cityPopup.hotels  = JSON.parse(props.hotels || '[]')
       }
       mapInstance.on('click', 'city-circles', handleCityClick)
       mapInstance.on('click', 'city-labels',  handleCityClick)
@@ -715,6 +729,7 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
         transport:  t?.transport  ?? null,
         url:        t?.url        ?? null,
         memo:       t?.memo       ?? null,
+        price:      t?.price      ?? null,
         ticketType: t?.ticketType ?? DEFAULT_TICKET,
         mode:       t?.mode       ?? DEFAULT_MODE,
       },
@@ -736,6 +751,7 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
         nights:   city.nights ?? null,
         memo:     city.memo   ?? null,
         spots:    JSON.stringify(city.spots || []),
+        hotels:   JSON.stringify(city.hotels || []),
       },
       geometry: { type: 'Point', coordinates: city.coords },  // [lng, lat]
     })
@@ -1316,6 +1332,34 @@ onUnmounted(() => {
   text-decoration: none;
 }
 .city-popup-spots a:hover { text-decoration: underline; }
+.city-popup-hotels {
+  list-style: none;
+  margin: 0 0 7px;
+  padding: 0;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.city-popup-hotels li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+}
+.city-popup-hotel-icon { flex-shrink: 0; }
+.city-popup-hotels a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.city-popup-hotels a:hover { text-decoration: underline; }
+.city-popup-hotel-meta {
+  color: var(--accent);
+  font-size: 0.72rem;
+  background: var(--accent-soft);
+  padding: 0 6px;
+  border-radius: 10px;
+}
 .city-popup-spot-memo {
   display: block;
   color: var(--text-muted);
@@ -1355,6 +1399,12 @@ onUnmounted(() => {
 .leg-popup-transport {
   font-size: 0.85rem;
   color: var(--text);
+  margin-bottom: 4px;
+}
+.leg-popup-price {
+  font-size: 0.82rem;
+  color: var(--success);
+  font-weight: 600;
   margin-bottom: 4px;
 }
 .leg-popup-link {

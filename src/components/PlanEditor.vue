@@ -170,6 +170,24 @@
                         <label class="pe-sub-label">メモ</label>
                         <input v-model="item.memo" placeholder="メモ（¥nで改行）" class="pe-sub-input" />
                       </div>
+                      <!-- ホテル -->
+                      <div class="pe-hotels-section">
+                        <div class="pe-spots-toggle" @click="toggleHotels(pi, ci)">
+                          <span>🏨 ホテル ({{ (item.hotels || []).length }}件)</span>
+                          <span class="pe-spots-arrow">{{ openHotels[`${pi}-${ci}`] ? '▾' : '▸' }}</span>
+                        </div>
+                        <template v-if="openHotels[`${pi}-${ci}`]">
+                          <div v-for="(hotel, hi) in ensureHotels(item)" :key="hi" class="pe-hotel-row">
+                            <input v-model="hotel.name" placeholder="ホテル名" class="pe-hotel-name" />
+                            <input type="number" v-model.number="hotel.nights" min="0" placeholder="泊" class="pe-hotel-nights" />
+                            <input type="number" v-model.number="hotel.price" min="0" placeholder="料金(円)" class="pe-hotel-price" />
+                            <input v-model="hotel.url"  placeholder="URL（任意）" class="pe-hotel-url"  />
+                            <input v-model="hotel.memo" placeholder="メモ（任意）" class="pe-hotel-memo" />
+                            <button class="pe-icon-btn sm del" @click="deleteHotel(item, hi)" title="削除">✕</button>
+                          </div>
+                          <button class="pe-add-btn sm" @click="addHotel(item)">＋ ホテルを追加</button>
+                        </template>
+                      </div>
                       <!-- 観光スポット -->
                       <div class="pe-spots-section">
                         <div class="pe-spots-toggle" @click="toggleSpots(pi, ci)">
@@ -212,6 +230,7 @@
                           </select>
                         </div>
                         <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
+                        <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
                         <input v-model="item.url"       placeholder="URL（任意）"           class="pe-tr-url"  />
                         <input v-model="item.memo"      placeholder="メモ（任意）"           class="pe-tr-memo" />
                       </div>
@@ -327,9 +346,20 @@ function buildCleanedData() {
             })
             if (item.spots.length === 0) delete item.spots
           }
+          if (item.hotels) {
+            item.hotels = item.hotels.filter(h => h.name?.trim())
+            item.hotels.forEach(h => {
+              if (!h.nights && h.nights !== 0) delete h.nights
+              if (h.price === '' || h.price === null || h.price === undefined) delete h.price
+              if (!h.url?.trim())  delete h.url
+              if (!h.memo?.trim()) delete h.memo
+            })
+            if (item.hotels.length === 0) delete item.hotels
+          }
         } else {
           if (!item.url?.trim())  delete item.url
           if (!item.memo?.trim()) delete item.memo
+          if (item.price === '' || item.price === null || item.price === undefined) delete item.price
         }
       })
     })
@@ -368,6 +398,7 @@ function handleClose() {
 const activeSet = ref(props.singleSetIndex !== null ? props.singleSetIndex : (data.length > 0 ? 0 : null))
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
+const openHotels = ref({})  // { [`${pi}-${ci}`]: boolean }
 
 // ── ポインタ D&D ─────────────────────────────
 const dragPlanInfo      = ref(null)  // { pi } | null
@@ -391,6 +422,11 @@ function togglePlan(pi) {
 function toggleSpots(pi, ci) {
   const key = `${pi}-${ci}`
   openSpots.value[key] = !openSpots.value[key]
+}
+
+function toggleHotels(pi, ci) {
+  const key = `${pi}-${ci}`
+  openHotels.value[key] = !openHotels.value[key]
 }
 
 // ── ポインタ D&D ハンドラ ─────────────────────────────────
@@ -540,7 +576,7 @@ function addCity(plan) {
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', url: '', memo: '', ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
+  plan.cities.push({ transport: '', url: '', memo: '', price: null, ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
 }
 
 function deleteItem(cities, ci) {
@@ -561,6 +597,21 @@ function addSpot(cityItem) {
 
 function deleteSpot(cityItem, spi) {
   cityItem.spots.splice(spi, 1)
+}
+
+// ── ホテル CRUD ─────────────────────
+function ensureHotels(item) {
+  if (!item.hotels) item.hotels = []
+  return item.hotels
+}
+
+function addHotel(cityItem) {
+  if (!cityItem.hotels) cityItem.hotels = []
+  cityItem.hotels.push({ name: '', nights: null, price: null, url: '', memo: '' })
+}
+
+function deleteHotel(cityItem, hi) {
+  cityItem.hotels.splice(hi, 1)
 }
 
 // ── 国オートコンプリート ──────────────────────────
@@ -1173,6 +1224,30 @@ function selectCountry(key, item, s) {
 .pe-spot-url  { flex: 1.5; min-width: 0; }
 .pe-spot-memo { flex: 1;   min-width: 0; }
 
+/* ホテル行 */
+.pe-hotel-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 0 0 4px;
+}
+.pe-hotel-name, .pe-hotel-nights, .pe-hotel-price, .pe-hotel-url, .pe-hotel-memo {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  padding: 2px 5px;
+  font-size: 0.75rem;
+  outline: none;
+}
+.pe-hotel-name:focus, .pe-hotel-nights:focus, .pe-hotel-price:focus,
+.pe-hotel-url:focus, .pe-hotel-memo:focus { border-color: var(--accent); }
+.pe-hotel-name   { flex: 1.2; min-width: 0; }
+.pe-hotel-nights { width: 44px; flex: none; text-align: right; }
+.pe-hotel-price  { width: 74px; flex: none; text-align: right; }
+.pe-hotel-url    { flex: 1.3; min-width: 0; }
+.pe-hotel-memo   { flex: 1;   min-width: 0; }
+
 /* 移動カード */
 .pe-transport-card {
   display: flex;
@@ -1224,6 +1299,18 @@ function selectCountry(key, item, s) {
 .pe-tr-main { flex: 2; min-width: 120px; }
 .pe-tr-url  { flex: 1.5; min-width: 100px; }
 .pe-tr-memo { flex: 1;   min-width: 80px;  }
+.pe-tr-price {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  width: 100px;
+  text-align: right;
+}
+.pe-tr-price:focus { border-color: var(--accent); }
 
 /* 追加ボタン */
 .pe-add-row {

@@ -5,6 +5,7 @@
         <div class="list-header">
           <h2>{{ setName }}</h2>
           <div class="list-header-actions">
+            <span v-if="grandTotal > 0" class="set-grand-total">総額 {{ formatYen(grandTotal) }}</span>
             <button v-if="canEdit" class="edit-mode-btn" @click="$emit('edit')">✎ 編集</button>
             <button class="close-btn" @click="$emit('close')">✕</button>
           </div>
@@ -25,6 +26,7 @@
                     <span class="stop-leg-mode">{{ modeEmoji(item.mode) }}</span>
                     <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
                     <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
+                    <span v-if="item.price" class="stop-leg-price">{{ formatYen(item.price) }}</span>
                     <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
                   </div>
                   <!-- 都市エントリー（直前が都市なら矢印を補完） -->
@@ -38,6 +40,15 @@
                         <span v-if="item.nights" class="stop-nights">{{ item.nights }}泊</span>
                         <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
                       </div>
+                      <ul v-if="item.hotels && item.hotels.length" class="stop-hotels">
+                        <li v-for="(hotel, hi) in item.hotels" :key="hi">
+                          <a v-if="hotel.url" :href="hotel.url" target="_blank" rel="noopener">{{ hotel.name }}</a>
+                          <span v-else>{{ hotel.name }}</span>
+                          <span v-if="hotel.nights" class="stop-hotel-meta">{{ hotel.nights }}泊</span>
+                          <span v-if="hotel.price" class="stop-hotel-meta">{{ formatYen(hotel.price) }}</span>
+                          <span v-if="hotel.memo" class="spot-memo spot-memo-block" v-html="memoHtml(hotel.memo)"></span>
+                        </li>
+                      </ul>
                       <ul v-if="item.spots && item.spots.length" class="stop-spots">
                         <li v-for="(spot, si) in item.spots" :key="si">
                           <a v-if="spot.url" :href="spot.url" target="_blank" rel="noopener">{{ spot.name }}</a>
@@ -50,6 +61,11 @@
                 </template>
               </div>
               <div class="plan-countries">{{ plan.countries.map(c => getCountryJa(c)).join('・') }}</div>
+              <div v-if="planCost(plan).total > 0" class="plan-total">
+                <span class="plan-total-label">総額</span>
+                <span class="plan-total-value">{{ formatYen(planCost(plan).total) }}</span>
+                <span v-if="planCost(plan).transport && planCost(plan).hotel" class="plan-total-breakdown">（移動 {{ formatYen(planCost(plan).transport) }}・宿泊 {{ formatYen(planCost(plan).hotel) }}）</span>
+              </div>
             </div>
           </div>
         </div>
@@ -59,8 +75,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { memoHtml } from '../utils/text.js'
+import { ref, watch, computed } from 'vue'
+import { memoHtml, formatYen } from '../utils/text.js'
 import { modeEmoji } from '../utils/transport.js'
 
 const props = defineProps({
@@ -76,6 +92,26 @@ const openPlans = ref([])
 watch(() => props.plans, (list) => { openPlans.value = list.map(() => true) }, { immediate: true })
 
 function toggle(j) { openPlans.value[j] = !openPlans.value[j] }
+
+// コースの料金合計（移動＋宿泊）を集計する。
+function planCost(plan) {
+  let transport = 0, hotel = 0
+  for (const item of plan.cities) {
+    if (item._type === 'transport') {
+      if (item.price) transport += Number(item.price) || 0
+    } else if (item._type === 'city') {
+      for (const h of (item.hotels || [])) {
+        if (h.price) hotel += Number(h.price) || 0
+      }
+    }
+  }
+  return { transport, hotel, total: transport + hotel }
+}
+
+// セット全体（全コース）の総額
+const grandTotal = computed(() =>
+  props.plans.reduce((acc, p) => acc + planCost(p).total, 0)
+)
 </script>
 
 <style scoped>
@@ -242,6 +278,12 @@ function toggle(j) { openPlans.value[j] = !openPlans.value[j] }
   color: var(--accent-hover);
 }
 
+.stop-leg-price {
+  font-size: 0.72rem;
+  color: var(--success);
+  font-weight: 600;
+}
+
 .stop-header {
   display: flex;
   align-items: baseline;
@@ -291,6 +333,46 @@ function toggle(j) { openPlans.value[j] = !openPlans.value[j] }
   color: var(--accent-hover);
 }
 
+.stop-hotels {
+  list-style: none;
+  margin: 2px 0 2px 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stop-hotels li {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.stop-hotels li::before {
+  content: '🏨 ';
+  font-size: 0.65rem;
+}
+
+.stop-hotels a {
+  color: var(--accent);
+  text-decoration: underline dotted;
+}
+
+.stop-hotels a:hover {
+  color: var(--accent-hover);
+}
+
+.stop-hotel-meta {
+  font-size: 0.68rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 0 5px;
+  border-radius: 3px;
+}
+
 .stop-memo {
   font-size: 0.7rem;
   color: var(--text-muted);
@@ -317,4 +399,25 @@ function toggle(j) { openPlans.value[j] = !openPlans.value[j] }
   color: var(--accent);
   margin-top: 2px;
 }
+
+.set-grand-total {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-soft);
+  padding: 2px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.plan-total {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+.plan-total-label { color: var(--text-muted); }
+.plan-total-value { color: var(--success); font-weight: 600; }
+.plan-total-breakdown { color: var(--text-faint); font-size: 0.72rem; }
 </style>
