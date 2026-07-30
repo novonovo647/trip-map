@@ -32,7 +32,15 @@
               <ul>
                 <li v-for="c in groupedList[region]" :key="c.en"
                   :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
-                  <span>{{ c.ja }}</span>
+                  <span class="country-ja">{{ c.ja }}</span>
+                  <span
+                    v-if="c.plans"
+                    v-overflow="c.en"
+                    class="plan-name"
+                    :class="{ expanded: expandedPlans.has(c.en), truncated: truncated.has(c.en) }"
+                    :title="c.plans"
+                    @click="onPlanClick(c.en)"
+                  >{{ c.plans }}</span>
                   <button v-if="countryEditMode && listMode === 'visited'" class="toggle-remove-btn" @click.stop="$emit('toggle', c.en, c.ja)" title="渡航済みから削除">✕</button>
                   <button v-if="countryEditMode && listMode === 'unvisited'" class="toggle-add-btn" :class="{ active: countryEditSet.has(c.en) }" @click.stop="$emit('toggle', c.en, c.ja)" :title="countryEditSet.has(c.en) ? '追加を取り消す' : '渡航済みに追加'">{{ countryEditSet.has(c.en) ? '✓' : '+' }}</button>
                 </li>
@@ -46,6 +54,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { REGION_ORDER, REGION_LABELS } from '../utils/countries.js'
 
 defineProps({
@@ -62,6 +71,47 @@ defineProps({
 })
 
 defineEmits(['close', 'enter-edit', 'toggle'])
+
+// タップで全文展開するプラン名の国コード集合（スマホ向け）
+const expandedPlans = ref(new Set())
+function togglePlan(en) {
+  const s = new Set(expandedPlans.value)
+  s.has(en) ? s.delete(en) : s.add(en)
+  expandedPlans.value = s
+}
+
+// 溢れている（= タップ可能な）プラン名の集合
+const truncated = ref(new Set())
+function setTruncated(en, val) {
+  const has = truncated.value.has(en)
+  if (val === has) return
+  const s = new Set(truncated.value)
+  val ? s.add(en) : s.delete(en)
+  truncated.value = s
+}
+function onPlanClick(en) {
+  // 溢れている、または展開中のときだけトグル
+  if (truncated.value.has(en) || expandedPlans.value.has(en)) togglePlan(en)
+}
+
+// 溢れ判定ディレクティブ（展開中は測定しない＝折返しで溢れ0になるため）
+const vOverflow = {
+  mounted(el, binding) {
+    const en = binding.value
+    const check = () => {
+      if (expandedPlans.value.has(en)) return
+      setTruncated(en, el.scrollWidth > el.clientWidth + 1)
+    }
+    el._ro = new ResizeObserver(check)
+    el._ro.observe(el)
+    check()
+  },
+  updated(el, binding) {
+    const en = binding.value
+    if (!expandedPlans.value.has(en)) setTruncated(en, el.scrollWidth > el.clientWidth + 1)
+  },
+  unmounted(el) { el._ro?.disconnect() },
+}
 </script>
 
 <style scoped>
@@ -222,7 +272,32 @@ defineEmits(['close', 'enter-edit', 'toggle'])
   align-items: center;
   gap: 6px;
 }
-.region-section ul li span { flex: 1; }
+.region-section ul li .country-ja { flex: 1 1 auto; white-space: nowrap; }
+.region-section ul li:has(.plan-name) .country-ja { flex: 0 0 auto; }
+.plan-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: right;
+  cursor: default;
+}
+/* 溢れている（タップ可能な）項目だけ手がかりを表示 */
+.plan-name.truncated {
+  cursor: pointer;
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.plan-name.expanded {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  word-break: break-word;
+}
 
 .strikethrough-item {
   text-decoration-line: line-through;

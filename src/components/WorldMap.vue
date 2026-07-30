@@ -329,6 +329,30 @@ const allPlannedCountries = computed(() => {
   return s
 })
 
+// プラン国（フィーチャー名）→ それを含むプラン名(setName)一覧
+const plannedCountryPlans = computed(() => {
+  const map = {}
+  for (const ps of PLAN_SETS.value) {
+    const label = ps.setName?.trim()
+    if (!label) continue
+    const names = new Set()
+    for (const plan of ps.plans) {
+      for (const c of plan.cities) {
+        if (isTransport(c)) continue
+        const country = c.country
+        if (!country) continue
+        names.add(country)
+        if (NAME_MAP[country]) names.add(NAME_MAP[country])
+      }
+    }
+    for (const name of names) {
+      if (!map[name]) map[name] = []
+      if (!map[name].includes(label)) map[name].push(label)
+    }
+  }
+  return map
+})
+
 // プラン済みカウント（一覧と同一条件: 母国・除外地域・渡航済みを除く実フィーチャー数）
 const plannedCount = computed(() => {
   visitedVersion.value   // 保存後の強制再計算
@@ -377,7 +401,10 @@ const groupedList = computed(() => {
     }
     const region = countryRegions[name] || 'other'
     if (!result[region]) result[region] = []
-    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name) })
+    const plans = listMode.value === 'planned'
+      ? (plannedCountryPlans.value[name] || []).join('、')
+      : ''
+    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name), plans })
   }
   for (const arr of Object.values(result)) {
     arr.sort((a, b) => a.ja.localeCompare(b.ja, 'ja'))
