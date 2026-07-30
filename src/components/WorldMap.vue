@@ -47,7 +47,7 @@
     <div class="stats">
       <span class="stat-visited" @click="listMode = 'visited'">渡航済み: <strong>{{ totalCount }}</strong></span>
       <span class="stat-sep">&nbsp;/&nbsp;</span>
-      <span v-if="plannedCount > 0" class="stat-planned">プラン済み: <strong>{{ plannedCount }}</strong></span>
+      <span v-if="plannedCount > 0" class="stat-planned" @click="listMode = 'planned'">プラン済み: <strong>{{ plannedCount }}</strong></span>
       <span v-if="plannedCount > 0" class="stat-sep">&nbsp;/&nbsp;</span>
       <span class="stat-unvisited" @click="listMode = 'unvisited'">未渡航: <strong class="total-features">{{ totalFeatures }}</strong></span>
       <span class="stat-unit">&nbsp;か国・地域</span>
@@ -216,7 +216,7 @@ import { TRANSPORT_MODES, DEFAULT_MODE, DEFAULT_TICKET, modeLabel } from '../uti
 import { MAP_COLORS } from '../utils/mapColors.js'
 import {
   EXCLUDE_FROM_LIST, STRIKETHROUGH_NAMES,
-  SKIP_NAMES, NAME_MAP,
+  SKIP_NAMES, NAME_MAP, HOME_COUNTRY,
 } from '../utils/countries.js'
 import { memoHtml, formatYen } from '../utils/text.js'
 import { useAuth } from '../composables/useAuth.js'
@@ -261,7 +261,7 @@ const totalFeatures = ref(0) // 地図上の総国・地域数（drawMap後に�
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const cityPopup = reactive({ visible: false, x: 0, y: 0, name: '', nights: null, memo: null, spots: [], hotels: [] })
 const legPopup  = reactive({ visible: false, x: 0, y: 0, from: '', to: '', transport: null, url: null, memo: null, ticketType: null, mode: null, price: null })
-const listMode = ref(null)   // null | 'visited' | 'unvisited'
+const listMode = ref(null)   // null | 'visited' | 'unvisited' | 'planned'
 const selectedSet   = ref(null) // null | セットindex
 const selectedPlan  = ref(new Set()) // Set<number> 選択中のプランindex（セット内）
 const modalSetIndex = ref(null) // null | セット詳細モーダルのindex
@@ -329,11 +329,17 @@ const allPlannedCountries = computed(() => {
   return s
 })
 
-// プラン済みカウント（渡航済みを除く）
+// プラン済みカウント（一覧と同一条件: 母国・除外地域・渡航済みを除く実フィーチャー数）
 const plannedCount = computed(() => {
+  visitedVersion.value   // 保存後の強制再計算
   let n = 0
-  for (const en of allPlannedCountries.value) {
-    if (!isVisited(en)) n++
+  for (const name of allFeatureNames.value) {
+    if (!name) continue
+    if (name === HOME_COUNTRY) continue
+    if (EXCLUDE_FROM_LIST.has(name)) continue
+    if (!allPlannedCountries.value.has(name)) continue
+    if (isVisited(name)) continue
+    n++
   }
   return n
 })
@@ -359,11 +365,16 @@ const groupedList = computed(() => {
   const result = {}
   for (const name of allFeatureNames.value) {
     if (!name) continue
+    if (name === HOME_COUNTRY) continue
     if (EXCLUDE_FROM_LIST.has(name)) continue
-    const isV = inEdit ? editSet.has(name) : isVisited(name)
-    if (listMode.value === 'visited'   &&  !isV) continue
-    if (listMode.value === 'unvisited' &&   isV) continue
-    if (listMode.value === 'unvisited' && name === 'Japan') continue
+    if (listMode.value === 'planned') {
+      if (!allPlannedCountries.value.has(name)) continue
+      if (isVisited(name)) continue
+    } else {
+      const isV = inEdit ? editSet.has(name) : isVisited(name)
+      if (listMode.value === 'visited'   &&  !isV) continue
+      if (listMode.value === 'unvisited' &&   isV) continue
+    }
     const region = countryRegions[name] || 'other'
     if (!result[region]) result[region] = []
     result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name) })
@@ -439,7 +450,7 @@ async function drawMap() {
 
   // 全フィーチャー名を保存（国一覧モーダル用）
   allFeatureNames.value = countries.features.map(f => f.properties?.name).filter(Boolean)
-  totalFeatures.value = allFeatureNames.value.filter(n => !EXCLUDE_FROM_LIST.has(n) && !STRIKETHROUGH_NAMES.has(n) && !SKIP_NAMES.has(n)).length
+  totalFeatures.value = allFeatureNames.value.filter(n => n !== HOME_COUNTRY && !EXCLUDE_FROM_LIST.has(n) && !STRIKETHROUGH_NAMES.has(n) && !SKIP_NAMES.has(n)).length
 
   // 既存マップを破棄してから再生成
   if (mapInstance) {
@@ -1077,7 +1088,8 @@ onUnmounted(() => {
 .stat-visited { color: var(--danger); cursor: pointer; }
 .stat-visited:hover { text-decoration: underline; }
 .stat-visited strong { font-size: 1.1rem; }
-.stat-planned { color: var(--success); }
+.stat-planned { color: var(--success); cursor: pointer; }
+.stat-planned:hover { text-decoration: underline; }
 .stat-planned strong { font-size: 1.1rem; }
 .stat-unvisited { color: var(--accent); cursor: pointer; }
 .stat-unvisited:hover { text-decoration: underline; }

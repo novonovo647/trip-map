@@ -3,7 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import Papa from 'papaparse'
 import { db, auth } from '../firebase.js'
 import { saveWithHistory } from '../lib/persistence.js'
-import { NAME_MAP, MISSING_EN_MAP } from '../utils/countries.js'
+import { NAME_MAP, MISSING_EN_MAP, HOME_COUNTRY } from '../utils/countries.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 /**
@@ -40,6 +40,7 @@ export function useVisitedCountries({ onUpdated } = {}) {
       const ja = row['名称']?.trim()
       let en = row['英語名称']?.trim()
       if (!en && ja && MISSING_EN_MAP[ja]) en = MISSING_EN_MAP[ja]
+      if (en === HOME_COUNTRY) return  // 母国は渡航済みに含めない
       if (ja || en) totalCount.value++
       if (en) {
         visitedSet.add(en)

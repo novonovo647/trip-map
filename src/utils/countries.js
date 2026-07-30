@@ -69,6 +69,9 @@ export const SKIP_NAMES = new Set([
   'Saudi Arabia', 'Brunei', 'Kuwait',
 ])
 
+// 母国（渡航済み・プラン済み・未渡航のいずれのカウント・一覧からも除外する）
+export const HOME_COUNTRY = 'Japan'
+
 // CSV英語名 → 10mデータの properties.name への変換（差異のある分のみ）
 export const NAME_MAP = {
   'United States': 'United States of America',

@@ -4,14 +4,14 @@
       <div class="list-panel">
         <div class="list-header">
           <h2>
-            {{ listMode === 'visited' ? '渡航済み国・地域一覧' : '未渡航国・地域一覧' }}
+            {{ listMode === 'visited' ? '渡航済み国・地域一覧' : listMode === 'planned' ? 'プラン済み国・地域一覧' : '未渡航国・地域一覧' }}
             <span v-if="countryEditMode" class="edit-diff-count">
               <template v-if="countryEditAdded > 0">+{{ countryEditAdded }}</template>
               <template v-if="countryEditRemoved > 0"> −{{ countryEditRemoved }}</template>
             </span>
           </h2>
           <div class="list-header-actions">
-            <button v-if="canEdit && !countryEditMode" class="edit-mode-btn" @click="$emit('enter-edit')">✎ 編集</button>
+            <button v-if="canEdit && !countryEditMode && listMode !== 'planned'" class="edit-mode-btn" @click="$emit('enter-edit')">✎ 編集</button>
             <template v-if="countryEditMode">
               <span v-if="countryEditStatus !== 'idle'" class="ce-status" :class="countryEditStatus">
                 {{ countryEditStatus === 'saving' ? '保存中…' : countryEditStatus === 'error' ? '⚠ 保存失敗' : countryEditStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
