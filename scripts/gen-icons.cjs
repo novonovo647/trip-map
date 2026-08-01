@@ -49,26 +49,37 @@ function createPNG(width, height, drawPixel) {
   return Buffer.concat([sig, makeChunk('IHDR', ihdr), makeChunk('IDAT', compressed), makeChunk('IEND', Buffer.alloc(0))])
 }
 
-// ── 地球儀アイコン描画 ──────────────────────────────────────────────────
+// アイコン配色（地球儀）
+const GLOBE = {
+  BG:     [26,  26,  46,  255], // 背景 #1a1a2e
+  BORDER: [74,  122, 155, 255], // 縁取り #4a7a9b
+  OCEAN:  [29,  53,  87,  255], // 海 #1d3557
+  LAND:   [55,  85,  120, 255], // 陸地
+  GRID:   [74,  122, 155, 90 ], // 薄いグリッド
+}
+
+// おおまかな大陸配置（陸地なら LAND、海なら OCEAN）
+function landOrOcean(lon, lat) {
+  if (lon > -0.3 && lon < 2.5 && lat > -0.1 && lat < 1.2) return GLOBE.LAND // ユーラシア
+  if (lon >  0.0 && lon < 0.9 && lat > -0.6 && lat < 0.3) return GLOBE.LAND // アフリカ
+  if (lon > -2.5 && lon < -0.5 && lat > -0.9 && lat < 1.2) return GLOBE.LAND // 南北アメリカ
+  if (lon >  2.0 && lon < 2.9 && lat > -0.7 && lat < -0.1) return GLOBE.LAND // オーストラリア
+  return GLOBE.OCEAN
+}
+
+// ── 地球儀アイコン描画 ────────────────────────────────────
 function drawGlobe(x, y, w, h) {
   const cx = w / 2, cy = h / 2
   const R  = w * 0.42
   const dx = x - cx, dy = y - cy
   const dist = Math.sqrt(dx*dx + dy*dy)
 
-  // 背景 #1a1a2e
-  const BG     = [26,  26,  46,  255]
-  const BORDER = [74,  122, 155, 255] // #4a7a9b
-  const OCEAN  = [29,  53,  87,  255] // #1d3557
-  const LAND   = [55,  85,  120, 255] // やや明るい陸地色
-  const GRID   = [74,  122, 155, 90 ] // 薄いグリッド
-
   // グローブ外側のアンチエイリアス的なフェード
-  if (dist > R + 3) return BG
-  if (dist > R)     return [...BORDER.slice(0,3), Math.round(255 * (R + 3 - dist) / 3)]
+  if (dist > R + 3) return GLOBE.BG
+  if (dist > R)     return [...GLOBE.BORDER.slice(0,3), Math.round(255 * (R + 3 - dist) / 3)]
 
   // 縁取り
-  if (dist > R - 4) return BORDER
+  if (dist > R - 4) return GLOBE.BORDER
 
   // 球面座標に変換
   const nx = dx / R
@@ -83,28 +94,42 @@ function drawGlobe(x, y, w, h) {
   const dLat = Math.abs(((lat % S) + S) % S - S/2)
   const lineW = R < 100 ? 0.06 : 0.03
 
-  if (dLon < lineW || dLat < lineW) return GRID
+  if (dLon < lineW || dLat < lineW) return GLOBE.GRID
 
-  // おおまかな大陸配置
-  // ユーラシア
-  if (lon > -0.3 && lon < 2.5 && lat > -0.1 && lat < 1.2) return LAND
-  // アフリカ
-  if (lon >  0.0 && lon < 0.9 && lat > -0.6 && lat < 0.3) return LAND
-  // 南北アメリカ
-  if (lon > -2.5 && lon < -0.5 && lat > -0.9 && lat < 1.2) return LAND
-  // オーストラリア
-  if (lon >  2.0 && lon < 2.9 && lat > -0.7 && lat < -0.1) return LAND
-
-  return OCEAN
+  return landOrOcean(lon, lat)
 }
 
-// 出力先
-const OUT = path.join(__dirname, '..', 'public')
-fs.mkdirSync(OUT, { recursive: true })
+// ── ファビコン用（小サイズ向けの簡略版・グリッドなし・縁取り太め）───────
+function drawFavicon(x, y, w, h) {
+  const cx = w / 2, cy = h / 2
+  const R  = w * 0.44
+  const dx = x - cx, dy = y - cy
+  const dist = Math.sqrt(dx*dx + dy*dy)
 
-for (const size of [192, 512]) {
-  fs.writeFileSync(path.join(OUT, `icon-${size}.png`), createPNG(size, size, drawGlobe))
-  console.log(`✓ icon-${size}.png`)
+  if (dist > R)          return GLOBE.BG
+  if (dist > R - w*0.1)  return GLOBE.BORDER // 太めの縁取り
+
+  const nx = dx / R
+  const ny = dy / R
+  const nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny))
+  const lon = Math.atan2(nx, nz)
+  const lat = Math.asin(Math.max(-1, Math.min(1, ny)))
+
+  return landOrOcean(lon, lat)
 }
-fs.writeFileSync(path.join(OUT, 'apple-touch-icon.png'), createPNG(180, 180, drawGlobe))
-console.log('✓ apple-touch-icon.png')
+
+// スクリプトを直接実行したときだけ public/ に PNG を書き出す
+if (require.main === module) {
+  const OUT = path.join(__dirname, '..', 'public')
+  fs.mkdirSync(OUT, { recursive: true })
+
+  for (const size of [192, 512]) {
+    fs.writeFileSync(path.join(OUT, `icon-${size}.png`), createPNG(size, size, drawGlobe))
+    console.log(`✓ icon-${size}.png`)
+  }
+  fs.writeFileSync(path.join(OUT, 'apple-touch-icon.png'), createPNG(180, 180, drawGlobe))
+  console.log('✓ apple-touch-icon.png')
+}
+
+// vite.config.js から favicon を data URI 生成するために公開
+module.exports = { createPNG, drawGlobe, drawFavicon }
