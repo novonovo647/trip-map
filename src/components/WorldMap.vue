@@ -55,25 +55,15 @@
     <!-- プランDDリスト + コース表示 -->
     <div class="plan-bar">
       <div class="plan-select-row">
-        <span class="plan-bar-label">プラン
-        <button v-if="currentUser" class="manage-btn" title="プランを管理" @click="openPlanManager">✎</button>
-        :</span>
-        <div class="plan-selector-wrap">
-          <button class="plan-selector" @click.stop="dropdownOpen = !dropdownOpen">
-            <span>{{ selectedSet !== null ? PLAN_SETS[selectedSet].setName : '選択' }}</span>
-            <span class="selector-arrow">▾</span>
-          </button>
-          <div v-if="dropdownOpen" class="plan-dropdown">
-            <div class="dropdown-item item-clear" @click="clearPlan">— 選択しない —</div>
-            <div
-              v-for="(s, si) in PLAN_SETS" :key="si"
-              class="dropdown-item"
-              :class="{ active: selectedSet === si }"
-              @click="selectSetFromDD(si)"
-            >{{ s.setName }}</div>
-          </div>
-        </div>
-        <button v-if="selectedSet !== null" class="detail-btn" @click="modalSetIndex = selectedSet">編集</button>
+        <span class="plan-bar-label">プラン</span>
+        <button class="plan-select-btn" @click="openPlanManager">選択</button>
+        <span class="plan-bar-label">：</span>
+        <button
+          v-if="selectedSet !== null && PLAN_SETS[selectedSet]"
+          class="plan-selector"
+          @click="modalSetIndex = selectedSet"
+        >{{ PLAN_SETS[selectedSet].setName }}</button>
+        <span v-else class="plan-none">未選択</span>
       </div>
       <!-- コース一覧（常時描画・高さ予約でマップが動かない） -->
       <div class="course-list">
@@ -167,7 +157,8 @@
         :externalData="planExternalData"
         :editorInfo="planEditorInfo"
         :singleSetIndex="planEditorSetIndex"
-        @close="showPlanEditor = false"
+        :singlePlan="planEditorSinglePlan"
+        @close="onPlanEditorClose"
       />
     </Teleport>
 
@@ -178,8 +169,12 @@
         :initialData="PLAN_SETS"
         :externalData="planExternalData"
         :editorInfo="planEditorInfo"
+        :currentSelected="selectedSet"
+        :canEdit="!!currentUser"
+        :initialMode="planManagerMode"
         @close="showPlanManager = false"
-        @edit="(idx) => { showPlanManager = false; openPlanEditor(idx) }"
+        @select="onSelectSet"
+        @edit="onPlanManagerEdit"
       />
     </Teleport>
 
@@ -869,20 +864,55 @@ const showPlanEditor     = ref(false)
 const planExternalData   = ref(null)   // 他ユーザーの更新をエディタに輸送
 const planEditorInfo     = ref(null)   // { name, photo }
 const planEditorSetIndex = ref(null)   // null=全体, number=単一プラン表示
+const planEditorSinglePlan = ref(null) // null | { si, pi } 単一コース表示
 const showPlanManager    = ref(false)
+const planManagerMode    = ref('select') // 管理モーダルの初期モード
+const returnToManager    = ref(false)    // エディタを閉じたら管理モーダルへ戻る
 
-function openPlanEditor(setIdx = null) {
+function openPlanEditor(arg = null) {
   planExternalData.value  = null
   planEditorInfo.value    = null
   modalSetIndex.value     = null
-  planEditorSetIndex.value = typeof setIdx === 'number' ? setIdx : null
+  if (arg && typeof arg === 'object') {
+    // { si } = プラン単体編集 / { si, pi } = コース単体編集
+    planEditorSetIndex.value   = typeof arg.pi === 'number' ? null : arg.si
+    planEditorSinglePlan.value = typeof arg.pi === 'number' ? { si: arg.si, pi: arg.pi } : null
+  } else {
+    planEditorSetIndex.value   = typeof arg === 'number' ? arg : null
+    planEditorSinglePlan.value = null
+  }
   showPlanEditor.value    = true
 }
 
 function openPlanManager() {
   planExternalData.value = null
   planEditorInfo.value   = null
+  planManagerMode.value  = 'select'
   showPlanManager.value  = true
+}
+
+// エディタを閉じたときの復帰処理
+function onPlanEditorClose() {
+  showPlanEditor.value = false
+  if (returnToManager.value) {
+    returnToManager.value = false
+    planManagerMode.value = 'edit'
+    showPlanManager.value = true
+  }
+}
+
+// プラン管理モーダルでの選択（si=null で選択解除）
+function onSelectSet(si) {
+  if (si === null) clearPlan()
+  else selectSetFromDD(si)
+  showPlanManager.value = false
+}
+
+// プラン管理モーダルからの編集起動（{ si } または { si, pi }）
+function onPlanManagerEdit(payload) {
+  showPlanManager.value = false
+  returnToManager.value = true
+  openPlanEditor(payload)
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────
@@ -1162,6 +1192,25 @@ onUnmounted(() => {
 }
 .plan-selector:hover { border-color: var(--accent); color: var(--text); }
 .selector-arrow { font-size: 0.7rem; color: var(--accent); flex-shrink: 0; }
+
+.plan-select-btn {
+  flex-shrink: 0;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.plan-select-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.plan-none {
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  font-style: italic;
+}
 
 .plan-dropdown {
   position: absolute;

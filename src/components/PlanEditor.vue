@@ -4,8 +4,9 @@
 
       <!-- ヘッダー -->
       <div class="pe-header">
+        <h2 v-if="singlePlan">✎ コースを編集</h2>
         <input
-          v-if="singleSetIndex !== null"
+          v-else-if="singleSetIndex !== null"
           class="pe-header-name-input"
           v-model="data[singleSetIndex].setName"
           placeholder="プラン名"
@@ -29,7 +30,7 @@
       <div class="pe-body">
 
         <!-- サイドバー: コース一覧 -->
-        <div class="pe-sidebar" v-if="singleSetIndex === null">
+        <div class="pe-sidebar" v-if="singleSetIndex === null && !singlePlan">
           <div
             v-for="(ps, si) in data"
             :key="si"
@@ -47,14 +48,14 @@
         <div class="pe-content" v-if="activeSet !== null && data[activeSet]">
 
           <!-- プラン名 -->
-          <div class="pe-field-row" v-if="singleSetIndex === null">
+          <div class="pe-field-row" v-if="singleSetIndex === null && !singlePlan">
             <label class="pe-label">プラン名</label>
             <input class="pe-input pe-input-wide" v-model="data[activeSet].setName" placeholder="プラン名を入力" />
           </div>
 
           <!-- プラン一覧 -->
           <div class="pe-plans-section">
-            <template v-for="(plan, pi) in data[activeSet].plans" :key="pi">
+            <template v-for="{ plan, pi } in displayPlans" :key="pi">
               <div
                 class="pe-plan"
                 data-item-type="plan"
@@ -92,7 +93,7 @@
                     />
                     <span class="pe-label-sm">泊</span>
                   </div>
-                  <div class="pe-plan-actions" @click.stop>
+                  <div class="pe-plan-actions" @click.stop v-if="!singlePlan">
                     <button class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
                   </div>
                 </div>
@@ -251,10 +252,10 @@
             </template>
           </div>
 
-          <button class="pe-add-btn add-plan-btn" @click="addPlan">＋ コースを追加</button>
+          <button v-if="!singlePlan" class="pe-add-btn add-plan-btn" @click="addPlan">＋ コースを追加</button>
         </div>
 
-        <div v-else-if="singleSetIndex === null" class="pe-no-set">
+        <div v-else-if="singleSetIndex === null && !singlePlan" class="pe-no-set">
           プランを選択または追加してください
         </div>
       </div>
@@ -263,7 +264,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { auth } from '../firebase.js'
 import { saveWithHistory } from '../lib/persistence.js'
 import { isCity } from '../utils/plan.js'
@@ -277,6 +278,7 @@ const props = defineProps({
   externalData:   { type: Array,  default: null },
   editorInfo:     { type: Object, default: null },
   singleSetIndex: { type: Number, default: null },
+  singlePlan:     { type: Object, default: null },   // { si, pi } 単一コース編集
 })
 
 const emit = defineEmits(['close'])
@@ -308,7 +310,13 @@ watch(() => props.externalData, (newVal) => {
   autoSaveTimer = null
   data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
   // activeSet の更新
-  if (props.singleSetIndex !== null) {
+  if (props.singlePlan) {
+    if (props.singlePlan.si < data.length && props.singlePlan.pi < (data[props.singlePlan.si]?.plans.length ?? 0)) {
+      activeSet.value = props.singlePlan.si
+    } else {
+      emit('close')
+    }
+  } else if (props.singleSetIndex !== null) {
     if (props.singleSetIndex < data.length) {
       activeSet.value = props.singleSetIndex
     } else {
@@ -395,10 +403,25 @@ function handleClose() {
   }
 }
 
-const activeSet = ref(props.singleSetIndex !== null ? props.singleSetIndex : (data.length > 0 ? 0 : null))
+const activeSet = ref(
+  props.singlePlan ? props.singlePlan.si
+  : props.singleSetIndex !== null ? props.singleSetIndex
+  : (data.length > 0 ? 0 : null)
+)
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
 const openHotels = ref({})  // { [`${pi}-${ci}`]: boolean }
+
+// 表示対象のコース（単一コースモードは対象の1つのみ）
+const displayPlans = computed(() => {
+  if (activeSet.value === null || !data[activeSet.value]) return []
+  const plans = data[activeSet.value].plans
+  if (props.singlePlan) {
+    const p = plans[props.singlePlan.pi]
+    return p ? [{ plan: p, pi: props.singlePlan.pi }] : []
+  }
+  return plans.map((plan, pi) => ({ plan, pi }))
+})
 
 // ── ポインタ D&D ─────────────────────────────
 const dragPlanInfo      = ref(null)  // { pi } | null
@@ -407,7 +430,11 @@ const dragCityInfo      = ref(null)  // { pi, ci } | null
 const dragOverCityInfo  = ref(null)  // { pi, ci } | null
 
 // 最初のプランを開いた状態にする
-if (data.length > 0 && data[0].plans.length > 0) openPlan.value[0] = true
+if (props.singlePlan) {
+  openPlan.value[props.singlePlan.pi] = true
+} else if (data.length > 0 && data[0].plans.length > 0) {
+  openPlan.value[0] = true
+}
 
 function selectSet(si) {
   activeSet.value  = si
