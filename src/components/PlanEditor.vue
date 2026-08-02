@@ -21,7 +21,7 @@
             <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pe-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
             <span v-else class="pe-editor-name">{{ editorInfo.name }}</span>
           </template>
-          <button class="pe-close-btn" @click="handleClose" title="閉じる">×</button>
+          <button class="pe-close-btn" @click="handleClose" title="閉じる">✕</button>
         </div>
       </div>
       <div v-if="saveError" class="pe-error">{{ saveError }}</div>
@@ -164,7 +164,7 @@
                         <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
                         <span class="pe-label-sm">泊</span>
                         <div class="pe-item-btns">
-                          <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">✕</button>
+                          <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
                         </div>
                       </div>
                       <div class="pe-city-sub">
@@ -184,7 +184,7 @@
                             <input type="number" v-model.number="hotel.price" min="0" placeholder="料金(円)" class="pe-hotel-price" />
                             <input v-model="hotel.url"  placeholder="URL（任意）" class="pe-hotel-url"  />
                             <input v-model="hotel.memo" placeholder="メモ（任意）" class="pe-hotel-memo" />
-                            <button class="pe-icon-btn sm del" @click="deleteHotel(item, hi)" title="削除">✕</button>
+                            <button class="pe-icon-btn sm del" @click="deleteHotel(item, hi)" title="削除">🗑</button>
                           </div>
                           <button class="pe-add-btn sm" @click="addHotel(item)">＋ ホテルを追加</button>
                         </template>
@@ -200,7 +200,7 @@
                             <input v-model="spot.name" placeholder="スポット名" class="pe-spot-name" />
                             <input v-model="spot.url"  placeholder="URL（任意）" class="pe-spot-url"  />
                             <input v-model="spot.memo" placeholder="メモ（任意）" class="pe-spot-memo" />
-                            <button class="pe-icon-btn sm del" @click="deleteSpot(item, spi)" title="削除">✕</button>
+                            <button class="pe-icon-btn sm del" @click="deleteSpot(item, spi)" title="削除">🗑</button>
                           </div>
                           <button class="pe-add-btn sm" @click="addSpot(item)">＋ スポットを追加</button>
                         </template>
@@ -236,7 +236,7 @@
                         <input v-model="item.memo"      placeholder="メモ（任意）"           class="pe-tr-memo" />
                       </div>
                       <div class="pe-item-btns">
-                        <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">✕</button>
+                        <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
                       </div>
                     </div>
 

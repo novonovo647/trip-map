@@ -4,7 +4,7 @@
 
       <!-- ヘッダー -->
       <div class="pm-header">
-        <h2>✎ プラン管理</h2>
+        <h2>📋 プラン管理</h2>
         <div class="pm-header-actions">
           <span v-if="saveStatus !== 'idle'" class="pm-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
@@ -13,9 +13,9 @@
             <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pm-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
             <span v-else class="pm-editor-name">{{ editorInfo.name }}</span>
           </template>
-          <button v-if="canEdit && mode === 'edit'" class="pm-mode-btn" @click="addSet">✎ プラン追加</button>
-          <button v-if="canEdit" class="pm-mode-btn" :class="{ active: mode === 'edit' }" @click="toggleMode">✎ セット編集</button>
-          <button class="pm-close-btn" @click="handleClose" title="閉じる">×</button>
+          <button v-if="canEdit && mode === 'edit'" class="pm-mode-btn" @click="addSet">＋ プラン追加</button>
+          <button v-if="canEdit" class="pm-mode-btn" :class="{ active: mode === 'edit' }" @click="toggleMode">{{ mode === 'edit' ? '← 戻る' : '✎ セット編集' }}</button>
+          <button class="pm-close-btn" @click="handleClose" title="閉じる">✕</button>
         </div>
       </div>
       <div v-if="saveError" class="pm-error">{{ saveError }}</div>
