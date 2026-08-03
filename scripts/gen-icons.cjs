@@ -99,23 +99,42 @@ function drawGlobe(x, y, w, h) {
   return landOrOcean(lon, lat)
 }
 
-// ── ファビコン用（小サイズ向けの簡略版・グリッドなし・縁取り太め）───────
+// ファビコン配色（小サイズでも視認しやすい明るい地球儀）
+const FAVICON = {
+  OCEAN: [56,  132, 222, 255], // 海 #3884de
+  LINE:  [255, 255, 255, 240], // 経緯線
+  CLEAR: [0,   0,   0,   0  ], // 透明背景
+  EDGE:  1.5,                  // 縁のアンチエイリアス幅(px)
+  GRID_STEP: Math.PI / 6,      // 経緯線の間隔(30°)
+  GRID_W: 0.07,                // 経緯線の太さ(rad)
+}
+
+// ── ファビコン用（透明背景・明るい海・白い経緯線）───────
 function drawFavicon(x, y, w, h) {
   const cx = w / 2, cy = h / 2
-  const R  = w * 0.44
+  const R  = w * 0.47
   const dx = x - cx, dy = y - cy
   const dist = Math.sqrt(dx*dx + dy*dy)
 
-  if (dist > R)          return GLOBE.BG
-  if (dist > R - w*0.1)  return GLOBE.BORDER // 太めの縁取り
+  // 円の外は透明、縁はアンチエイリアスでなじませる
+  if (dist > R) return FAVICON.CLEAR
+  const edgeAlpha = dist > R - FAVICON.EDGE ? (R - dist) / FAVICON.EDGE : 1
 
+  // 球面座標に変換
   const nx = dx / R
   const ny = dy / R
   const nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny))
   const lon = Math.atan2(nx, nz)
   const lat = Math.asin(Math.max(-1, Math.min(1, ny)))
 
-  return landOrOcean(lon, lat)
+  // 経緯線(30°間隔)＋赤道を白で描く
+  const S = FAVICON.GRID_STEP
+  const dLon = Math.abs(((lon % S) + S) % S - S/2)
+  const dLat = Math.abs(((lat % S) + S) % S - S/2)
+  const isLine = dLon < FAVICON.GRID_W || dLat < FAVICON.GRID_W || Math.abs(lat) < FAVICON.GRID_W
+
+  const base = isLine ? FAVICON.LINE : FAVICON.OCEAN
+  return [base[0], base[1], base[2], Math.round(base[3] * edgeAlpha)]
 }
 
 // スクリプトを直接実行したときだけ public/ に PNG を書き出す
