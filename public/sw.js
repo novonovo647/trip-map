@@ -1,5 +1,5 @@
 // Service Worker: stale-while-revalidate + 更新バナー通知
-const CACHE = 'trip-v5'
+const CACHE = 'trip-v6'
 
 self.addEventListener('install', e => {
   // no-store でキャッシュをバイパスして最新 HTML を取得
@@ -12,14 +12,7 @@ self.addEventListener('activate', e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
-      .then(async () => {
-        // 旧 SW から新 SW へ更新されたとき、すべての開いているページを強制リロード
-        // client.navigate() は SW 側から直接実行するため、古いページ JS に依存しない
-        const all = await self.clients.matchAll({ type: 'window' })
-        await Promise.all(all.map(c =>
-          c.navigate(c.url).catch(() => c.postMessage({ type: 'SW_UPDATED' }))
-        ))
-      })
+  )
 })
 
 self.addEventListener('fetch', e => {
@@ -42,11 +35,9 @@ self.addEventListener('fetch', e => {
         if (freshText !== cachedText) {
           await cache.put('./', fresh)
           if (cachedText) {
-            // HTML が変わった → キャッシュ更新後に全クライアントをリロード
+            // HTML が変わった → 強制リロードはせず、クライアントへ通知のみ
             const clients = await self.clients.matchAll({ type: 'window' })
-            await Promise.all(clients.map(c =>
-              c.navigate(c.url).catch(() => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
-            ))
+            clients.forEach(c => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
           }
         }
       } catch { /* ネットワーク不可時は無視 */ }
