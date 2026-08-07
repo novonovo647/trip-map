@@ -399,7 +399,7 @@ const groupedList = computed(() => {
     const plans = listMode.value === 'planned'
       ? (plannedCountryPlans.value[name] || []).join('、')
       : ''
-    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name), plans })
+    result[region].push({ en: name, ja: getJaName(name), strikethrough: STRIKETHROUGH_NAMES.has(name), skip: SKIP_NAMES.has(name), plans, planned: listMode.value === 'unvisited' && allPlannedCountries.value.has(name) })
   }
   for (const arr of Object.values(result)) {
     arr.sort((a, b) => a.ja.localeCompare(b.ja, 'ja'))

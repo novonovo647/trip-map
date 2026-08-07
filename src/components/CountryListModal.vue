@@ -31,7 +31,7 @@
               <h3>{{ REGION_LABELS[region] }} <span class="region-count">({{ groupedList[region].length }})</span></h3>
               <ul>
                 <li v-for="c in groupedList[region]" :key="c.en"
-                  :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
+                  :class="{ 'strikethrough-item': c.strikethrough, 'skip-item': c.skip, 'planned-item': c.planned, 'edit-item-new': countryEditMode && listMode === 'unvisited' && countryEditSet.has(c.en) }">
                   <span class="country-ja">{{ c.ja }}</span>
                   <span
                     v-if="c.plans"
@@ -309,6 +309,8 @@ const vOverflow = {
   text-decoration: line-through;
   opacity: 0.35;
 }
+
+.planned-item .country-ja { color: var(--success); }
 
 .toggle-remove-btn {
   background: none;
