@@ -23,12 +23,21 @@ if ('serviceWorker' in navigator) {
 // ビルド時刻が変わっていれば新バージョンが配信されているので自動リロード
 ;(function startVersionWatch() {
   const myBuild = __APP_BUILD__
+  // 同一版へのリロードを繰り返さないためのガード（SW/CDN のキャッシュ遅延による無限リロード防止）
+  const RELOAD_KEY = 'pendingReloadVersion'
   async function check() {
     try {
       const r = await fetch('./version.json', { cache: 'no-store' })
       if (!r.ok) return
       const { v } = await r.json()
-      if (v !== myBuild) window.location.reload()
+      if (v === myBuild) {
+        sessionStorage.removeItem(RELOAD_KEY)
+        return
+      }
+      // 既にこの版へリロード済みなのに未適用（キャッシュ遅延）なら再リロードしない
+      if (sessionStorage.getItem(RELOAD_KEY) === String(v)) return
+      sessionStorage.setItem(RELOAD_KEY, String(v))
+      window.location.reload()
     } catch { /* ネットワーク不可時は無視 */ }
   }
   setTimeout(check, 8000)
