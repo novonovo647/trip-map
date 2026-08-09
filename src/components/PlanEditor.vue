@@ -169,7 +169,7 @@
                       </div>
                       <div class="pe-city-sub">
                         <label class="pe-sub-label">メモ</label>
-                        <input v-model="item.memo" placeholder="メモ（¥nで改行）" class="pe-sub-input" />
+                        <textarea v-model="item.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-sub-input pe-sub-textarea" rows="2"></textarea>
                       </div>
                       <!-- ホテル -->
                       <div class="pe-hotels-section">
@@ -182,8 +182,8 @@
                             <input v-model="hotel.name" placeholder="ホテル名" class="pe-hotel-name" />
                             <input type="number" v-model.number="hotel.nights" min="0" placeholder="泊" class="pe-hotel-nights" />
                             <input type="number" v-model.number="hotel.price" min="0" placeholder="料金(円)" class="pe-hotel-price" />
-                            <input v-model="hotel.url"  placeholder="URL（任意）" class="pe-hotel-url"  />
-                            <input v-model="hotel.memo" placeholder="メモ（任意）" class="pe-hotel-memo" />
+                            <input v-model="hotel.url"  :placeholder="PLACEHOLDER.URL"  class="pe-hotel-url"  />
+                            <input v-model="hotel.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-hotel-memo" />
                             <button class="pe-icon-btn sm del" @click="deleteHotel(item, hi)" title="削除">🗑</button>
                           </div>
                           <button class="pe-add-btn sm" @click="addHotel(item)">＋ ホテルを追加</button>
@@ -198,8 +198,8 @@
                         <template v-if="openSpots[`${pi}-${ci}`]">
                           <div v-for="(spot, spi) in ensureSpots(item)" :key="spi" class="pe-spot-row">
                             <input v-model="spot.name" placeholder="スポット名" class="pe-spot-name" />
-                            <input v-model="spot.url"  placeholder="URL（任意）" class="pe-spot-url"  />
-                            <input v-model="spot.memo" placeholder="メモ（任意）" class="pe-spot-memo" />
+                            <input v-model="spot.url"  :placeholder="PLACEHOLDER.URL"  class="pe-spot-url"  />
+                            <input v-model="spot.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-spot-memo" />
                             <button class="pe-icon-btn sm del" @click="deleteSpot(item, spi)" title="削除">🗑</button>
                           </div>
                           <button class="pe-add-btn sm" @click="addSpot(item)">＋ スポットを追加</button>
@@ -232,8 +232,8 @@
                         </div>
                         <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
                         <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
-                        <input v-model="item.url"       placeholder="URL（任意）"           class="pe-tr-url"  />
-                        <input v-model="item.memo"      placeholder="メモ（任意）"           class="pe-tr-memo" />
+                        <input v-model="item.url"       :placeholder="PLACEHOLDER.URL"       class="pe-tr-url"  />
+                        <input v-model="item.memo"      :placeholder="PLACEHOLDER.MEMO"      class="pe-tr-memo" />
                       </div>
                       <div class="pe-item-btns">
                         <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
@@ -269,6 +269,7 @@ import { auth } from '../firebase.js'
 import { saveWithHistory } from '../lib/persistence.js'
 import { isCity } from '../utils/plan.js'
 import { TRANSPORT_MODES, TICKET_TYPES, DEFAULT_MODE, DEFAULT_TICKET } from '../utils/transport.js'
+import { PLACEHOLDER } from '../utils/labels.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
@@ -1130,7 +1131,7 @@ function selectCountry(key, item, s) {
 
 .pe-city-sub {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
 }
 .pe-sub-label {
@@ -1150,6 +1151,12 @@ function selectCountry(key, item, s) {
   outline: none;
 }
 .pe-sub-input:focus { border-color: var(--accent); }
+.pe-sub-textarea {
+  resize: vertical;
+  min-height: 2.4em;
+  font-family: inherit;
+  line-height: 1.4;
+}
 
 /* 都市名エリア（都市名 + 国横並び） */
 .pe-city-name-wrap {
