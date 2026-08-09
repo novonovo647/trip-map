@@ -793,8 +793,7 @@ function buildPlanFeatures(plan, arcFeatures, markerFeatures) {
 
 function selectSetFromDD(si) {
   selectedSet.value = si
-  const plans = PLAN_SETS.value[si]?.plans ?? []
-  selectedPlan.value = new Set(plans.map((_, i) => i))
+  selectedPlan.value = new Set()   // 初期はコース未選択
   dropdownOpen.value = false
 }
 
