@@ -1,5 +1,5 @@
-// Service Worker: stale-while-revalidate + 更新バナー通知
-const CACHE = 'trip-v6'
+// Service Worker: network-first（オンライン時は常に最新、オフライン時のみキャッシュ）
+const CACHE = 'trip-v7'
 
 self.addEventListener('install', e => {
   // no-store でキャッシュをバイパスして最新 HTML を取得
@@ -20,29 +20,15 @@ self.addEventListener('fetch', e => {
   if (e.request.mode !== 'navigate') return
 
   e.respondWith((async () => {
-    const cache  = await caches.open(CACHE)
-    const cached = await cache.match('./')
-
-    // バックグラウンドで最新版を確認し、差異があればキャッシュ更新＋クライアントへ通知
-    ;(async () => {
-      try {
-        const fresh = await fetch(e.request, { cache: 'no-cache' })
-        if (!fresh.ok) return
-
-        const freshText  = await fresh.clone().text()
-        const cachedText = cached ? await cached.clone().text() : ''
-
-        if (freshText !== cachedText) {
-          await cache.put('./', fresh)
-          if (cachedText) {
-            // HTML が変わった → 強制リロードはせず、クライアントへ通知のみ
-            const clients = await self.clients.matchAll({ type: 'window' })
-            clients.forEach(c => c.postMessage({ type: 'UPDATE_AVAILABLE' }))
-          }
-        }
-      } catch { /* ネットワーク不可時は無視 */ }
-    })()
-
-    return cached || fetch(e.request)
+    const cache = await caches.open(CACHE)
+    try {
+      // オンライン時は常に最新の HTML を取得し、キャッシュも更新
+      const fresh = await fetch(e.request, { cache: 'no-store' })
+      if (fresh.ok) {
+        await cache.put('./', fresh.clone())
+        return fresh
+      }
+    } catch { /* オフライン時はキャッシュへフォールバック */ }
+    return (await cache.match('./')) || fetch(e.request)
   })())
 })
