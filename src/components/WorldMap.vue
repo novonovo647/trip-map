@@ -1292,7 +1292,8 @@ onUnmounted(() => {
   scrollbar-width: none;
   padding: 2px 4px;
   box-sizing: border-box;
-  justify-content: center;
+  /* 中央寄せしつつ、溢れたときは左端（先頭）が隠れず参照できるようにする */
+  justify-content: safe center;
   align-items: center;
 }
 .course-list::-webkit-scrollbar { display: none; }

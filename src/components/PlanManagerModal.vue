@@ -46,7 +46,17 @@
           <div class="pm-card-body">
             <div class="pm-card-name">{{ ps.setName || '（名称なし）' }}</div>
             <div class="pm-card-courses">
-              <span v-for="(plan, pi) in ps.plans" :key="pi" class="pm-card-course">{{ plan.label || '（名称なし）' }}</span>
+              <span
+                v-for="(plan, pi) in ps.plans" :key="pi"
+                v-course-overflow="`${si}-${pi}`"
+                class="pm-card-course"
+                :class="{
+                  expanded: expandedCourses.has(`${si}-${pi}`),
+                  truncated: truncatedCourses.has(`${si}-${pi}`)
+                }"
+                :title="plan.label || '（名称なし）'"
+                @pointerdown="onCoursePointerDown($event, `${si}-${pi}`)"
+              >{{ plan.label || '（名称なし）' }}</span>
               <span v-if="ps.plans.length === 0" class="pm-card-empty">コースなし</span>
             </div>
           </div>
@@ -111,6 +121,49 @@ const emit = defineEmits(['close', 'edit', 'select'])
 const mode = ref(props.initialMode)   // 'select' | 'edit'
 function toggleMode() {
   mode.value = mode.value === 'select' ? 'edit' : 'select'
+}
+
+// ── コース名の省略表示・タップ展開（選択モードのチップ）───────────
+const expandedCourses  = ref(new Set())  // 展開中のコースキー集合
+const truncatedCourses = ref(new Set())  // 溢れている（=タップ可能な）キー集合
+function setCourseTruncated(key, val) {
+  const has = truncatedCourses.value.has(key)
+  if (val === has) return
+  const s = new Set(truncatedCourses.value)
+  val ? s.add(key) : s.delete(key)
+  truncatedCourses.value = s
+}
+function toggleCourse(key) {
+  const s = new Set(expandedCourses.value)
+  s.has(key) ? s.delete(key) : s.add(key)
+  expandedCourses.value = s
+}
+// 溢れているチップは、カードのドラッグ/選択より先に展開トグルを優先する
+function onCoursePointerDown(e, key) {
+  if (!truncatedCourses.value.has(key) && !expandedCourses.value.has(key)) return
+  e.stopPropagation()
+  e.preventDefault()
+  toggleCourse(key)
+}
+// 溢れ判定ディレクティブ（展開中は測定しない＝折返しで溢れ0になるため）
+const vCourseOverflow = {
+  mounted(el, binding) {
+    const key = binding.value
+    const check = () => {
+      if (expandedCourses.value.has(key)) return
+      setCourseTruncated(key, el.scrollWidth > el.clientWidth + 1)
+    }
+    el._ro = new ResizeObserver(check)
+    el._ro.observe(el)
+    check()
+    // 日本語 Web フォント確定後にも溢れ判定をやり直す
+    document.fonts?.ready?.then(check)
+  },
+  updated(el, binding) {
+    const key = binding.value
+    if (!expandedCourses.value.has(key)) setCourseTruncated(key, el.scrollWidth > el.clientWidth + 1)
+  },
+  unmounted(el) { el._ro?.disconnect() },
 }
 
 // ── 自動保存 ──────────────────────────────────────
@@ -501,6 +554,24 @@ function startCourseDrag(e, si, pi) {
   border-radius: 4px;
   padding: 1px 6px;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  vertical-align: bottom;
+  box-sizing: border-box;
+}
+/* 溢れている（タップで全文表示できる）チップだけ手がかりを表示 */
+.pm-card-course.truncated {
+  cursor: pointer;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.pm-card-course.expanded {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
 }
 .pm-card-empty {
   font-size: 0.7rem;

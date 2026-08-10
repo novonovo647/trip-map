@@ -105,6 +105,9 @@ const vOverflow = {
     el._ro = new ResizeObserver(check)
     el._ro.observe(el)
     check()
+    // 日本語 Web フォント読込後は要素サイズが変わらず ResizeObserver が
+    // 再発火しないため、フォント確定後にも溢れ判定をやり直す。
+    document.fonts?.ready?.then(check)
   },
   updated(el, binding) {
     const en = binding.value
