@@ -3,7 +3,8 @@
   "short_name": "旅行マップ",
   "description": "海外渡航記録と旅行プランを表示する地図アプリ",
   "start_url": "./",
-  "display": "standalone",
+  "display": "minimal-ui",
+  "display_override": ["minimal-ui", "browser"],
   "background_color": "#f8f9fa",
   "theme_color": "#ffffff",
   "icons": [
