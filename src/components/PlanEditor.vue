@@ -62,7 +62,8 @@
                 :data-pi="pi"
                 :class="{
                   'dnd-over': dragOverPlanInfo?.pi === pi && dragPlanInfo?.pi !== pi,
-                  'dnd-dragging': dragPlanInfo?.pi === pi
+                  'dnd-dragging': dragPlanInfo?.pi === pi,
+                  'dnd-city-target': dragCityInfo && dragOverCityInfo?.pi === pi && dragOverCityInfo?.ci === -1
                 }"
               >
 
@@ -527,11 +528,20 @@ function startCityDrag(e, pi, ci) {
   const offset = cardEl ? _startGhost(cardEl, e) : null
   const onMove = (ev) => {
     if (offset) _moveGhost(ev, offset)
-    const el = _hitEl(ev, '[data-item-type="city"]')
-    if (!el) return
-    const elPi = parseInt(el.dataset.pi)
-    const elCi = parseInt(el.dataset.ci)
-    if (elPi === pi && !isNaN(elCi)) dragOverCityInfo.value = { pi, ci: elCi }
+    // 都市/移動カード上なら、そのコース・位置を対象にする（コースをまたいでOK）
+    const cardEl = _hitEl(ev, '[data-item-type="city"]')
+    if (cardEl) {
+      const elPi = parseInt(cardEl.dataset.pi)
+      const elCi = parseInt(cardEl.dataset.ci)
+      if (!isNaN(elPi) && !isNaN(elCi)) dragOverCityInfo.value = { pi: elPi, ci: elCi }
+      return
+    }
+    // カード外＝コース本体上なら末尾へ挿入（空コース対応）
+    const planEl = _hitEl(ev, '[data-item-type="plan"]')
+    if (planEl) {
+      const elPi = parseInt(planEl.dataset.pi)
+      if (!isNaN(elPi)) dragOverCityInfo.value = { pi: elPi, ci: -1 }
+    }
   }
   const onUp = () => {
     _endGhost()
@@ -541,10 +551,14 @@ function startCityDrag(e, pi, ci) {
     const tgt = dragOverCityInfo.value
     dragCityInfo.value     = null
     dragOverCityInfo.value = null
-    if (!src || !tgt || src.ci === tgt.ci) return
-    const cities = data[activeSet.value].plans[pi].cities
-    const [item] = cities.splice(src.ci, 1)
-    cities.splice(tgt.ci, 0, item)
+    if (!src || !tgt) return
+    if (src.pi === tgt.pi && src.ci === tgt.ci) return
+    const plans = data[activeSet.value].plans
+    const [item] = plans[src.pi].cities.splice(src.ci, 1)
+    let insertCi = tgt.ci
+    if (insertCi === -1) insertCi = plans[tgt.pi].cities.length
+    else if (src.pi === tgt.pi && src.ci < insertCi) insertCi -= 1
+    plans[tgt.pi].cities.splice(insertCi, 0, item)
   }
   document.addEventListener('pointermove', onMove)
   document.addEventListener('pointerup', onUp)
@@ -1382,6 +1396,10 @@ function selectCountry(key, item, s) {
 .pe-city-card.dnd-over,
 .pe-transport-card.dnd-over {
   outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pe-plan.dnd-city-target {
+  outline: 2px dashed var(--accent);
   outline-offset: -2px;
 }
 .pe-plan.dnd-dragging,
