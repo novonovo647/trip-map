@@ -186,7 +186,7 @@
       :getCountryJa="getJaName"
       :canEdit="!!currentUser"
       @close="modalSetIndex = null"
-      @edit="openPlanEditor(modalSetIndex)"
+      @edit="onDetailEdit(modalSetIndex)"
     />
 
     <!-- データ復旧モーダル -->
@@ -867,6 +867,7 @@ const planEditorSinglePlan = ref(null) // null | { si, pi } 単一コース表�
 const showPlanManager    = ref(false)
 const planManagerMode    = ref('select') // 管理モーダルの初期モード
 const returnToManager    = ref(false)    // エディタを閉じたら管理モーダルへ戻る
+const returnToDetailSet  = ref(null)     // エディタを閉じたら詳細モーダルへ戻る（setIndex）
 
 function openPlanEditor(arg = null) {
   planExternalData.value  = null
@@ -897,7 +898,16 @@ function onPlanEditorClose() {
     returnToManager.value = false
     planManagerMode.value = 'edit'
     showPlanManager.value = true
+  } else if (returnToDetailSet.value !== null) {
+    modalSetIndex.value = returnToDetailSet.value
+    returnToDetailSet.value = null
   }
+}
+
+// 詳細モーダルからの編集起動（閉じたら詳細へ戻す）
+function onDetailEdit(si) {
+  openPlanEditor(si)
+  returnToDetailSet.value = si
 }
 
 // プラン管理モーダルでの選択（si=null で選択解除）
@@ -911,6 +921,7 @@ function onSelectSet(si) {
 function onPlanManagerEdit(payload) {
   showPlanManager.value = false
   returnToManager.value = true
+  returnToDetailSet.value = null
   openPlanEditor(payload)
 }
 

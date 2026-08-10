@@ -5,6 +5,7 @@
         <div class="list-header">
           <h2>{{ setName }}</h2>
           <div class="list-header-actions">
+            <span v-if="totalNights > 0" class="set-grand-total">{{ totalNights }}泊</span>
             <span v-if="grandTotal > 0" class="set-grand-total">総額 {{ formatYen(grandTotal) }}</span>
             <button v-if="canEdit" class="edit-mode-btn" @click="$emit('edit')">✎ 編集</button>
             <button class="close-btn" @click="$emit('close')">✕</button>
@@ -24,6 +25,7 @@
                   <div v-if="item._type === 'transport'" class="stop-leg">
                     <span class="stop-leg-arrow">↓</span>
                     <span class="stop-leg-mode">{{ modeEmoji(item.mode) }}</span>
+                    <span v-if="item.ticketType" class="stop-leg-ticket">{{ item.ticketType }}</span>
                     <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
                     <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
                     <span v-if="item.price" class="stop-leg-price">{{ formatYen(item.price) }}</span>
@@ -36,8 +38,8 @@
                     </div>
                     <div class="city-stop">
                       <div class="stop-header">
-                        <span class="stop-name">{{ item.name }}</span>
                         <span v-if="item.nights" class="stop-nights">{{ item.nights }}泊</span>
+                        <span class="stop-name">{{ item.name }}</span>
                         <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
                       </div>
                       <ul v-if="item.hotels && item.hotels.length" class="stop-hotels">
@@ -112,6 +114,11 @@ function planCost(plan) {
 const grandTotal = computed(() =>
   props.plans.reduce((acc, p) => acc + planCost(p).total, 0)
 )
+
+// プラン内の全コースの泊数合計
+const totalNights = computed(() =>
+  props.plans.reduce((acc, p) => acc + (Number(p.nights) || 0), 0)
+)
 </script>
 
 <style scoped>
@@ -133,8 +140,8 @@ const grandTotal = computed(() =>
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: min(860px, 92vw);
-  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
+  width: var(--modal-width);
+  height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -193,7 +200,7 @@ const grandTotal = computed(() =>
 
 /* セット詳細モーダル */
 .set-detail-panel {
-  max-width: 520px;
+  max-width: var(--modal-width);
 }
 
 .set-detail-body {
@@ -267,15 +274,29 @@ const grandTotal = computed(() =>
 .stop-leg-link,
 .stop-leg-text {
   font-size: 0.72rem;
-  color: var(--accent);
+}
+
+.stop-leg-text {
+  color: var(--text-muted);
 }
 
 .stop-leg-link {
+  color: var(--accent);
   text-decoration: underline dotted;
 }
 
 .stop-leg-link:hover {
   color: var(--accent-hover);
+}
+
+.stop-leg-ticket {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .stop-leg-price {

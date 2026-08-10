@@ -163,8 +163,8 @@ async function doRestore(item) {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: min(640px, 92vw);
-  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
+  width: var(--modal-width);
+  height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;

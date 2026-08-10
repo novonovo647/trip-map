@@ -407,7 +407,7 @@ function startCourseDrag(e, si, pi) {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: min(400px, 94vw);
+  width: var(--modal-width);
   max-height: min(80vh, 560px);
   display: flex;
   flex-direction: column;

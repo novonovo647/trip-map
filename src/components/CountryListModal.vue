@@ -136,8 +136,8 @@ const vOverflow = {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: min(860px, 92vw);
-  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
+  width: var(--modal-width);
+  height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;

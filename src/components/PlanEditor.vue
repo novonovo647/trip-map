@@ -232,15 +232,15 @@
                       <span v-if="!isItemOpen(pi, ci)" class="pe-tr-summary">{{ modeLabel(item) }}{{ item.transport ? ' ' + item.transport : '' }}</span>
                       <div v-if="isItemOpen(pi, ci)" class="pe-transport-fields">
                         <div class="pe-tr-selects">
-                          <select v-model="item.ticketType" class="pe-tr-select">
-                            <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
-                          </select>
                           <select v-model="item.mode" class="pe-tr-select">
                             <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
                           </select>
+                          <select v-model="item.ticketType" class="pe-tr-select">
+                            <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
+                          </select>
                         </div>
-                        <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
                         <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
+                        <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
                         <input v-model="item.url"       :placeholder="PLACEHOLDER.URL"       class="pe-tr-url"  />
                         <input v-model="item.memo"      :placeholder="PLACEHOLDER.MEMO"      class="pe-tr-memo" />
                       </div>
@@ -825,8 +825,8 @@ function selectCountry(key, item, s) {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: min(860px, 92vw);
-  height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
+  width: var(--modal-width);
+  height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;
