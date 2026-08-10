@@ -75,8 +75,8 @@
           :data-set-drop="si"
         >
           <div class="pm-set-row">
-            <span class="pm-set-name">{{ ps.setName || '（名称なし）' }}</span>
-            <button class="pm-edit-btn" @click="editSet(si)" title="編集">✎</button>
+            <input class="pm-set-name pm-name-input" v-model="ps.setName" placeholder="プラン名" />
+            <button class="pm-edit-btn" @click="editSet(si)" title="詳細編集">✎</button>
             <button class="pm-del-btn" @click="deleteSet(si)" title="削除">🗑</button>
           </div>
           <div
@@ -92,8 +92,8 @@
             }"
           >
             <span class="pm-course-handle" @pointerdown.prevent="startCourseDrag($event, si, pi)">⠿</span>
-            <span class="pm-course-name">{{ plan.label || '（名称なし）' }}</span>
-            <button class="pm-edit-btn" @click="editCourse(si, pi)" title="編集">✎</button>
+            <input class="pm-course-name pm-name-input" v-model="plan.label" placeholder="コース名" />
+            <button class="pm-edit-btn" @click="editCourse(si, pi)" title="詳細編集">✎</button>
             <button class="pm-del-btn" @click="deletePlan(si, pi)" title="削除">🗑</button>
           </div>
         </div>
@@ -636,6 +636,22 @@ function startCourseDrag(e, si, pi) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pm-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: inherit;
+  font-family: inherit;
+}
+.pm-name-input:hover { border-color: var(--border); }
+.pm-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-input, var(--bg));
 }
 .pm-edit-btn {
   background: none;
