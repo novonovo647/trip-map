@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="list-overlay" @click.self="$emit('close')">
+    <div class="modal-overlay list-overlay" @click.self="$emit('close')">
       <div class="list-panel set-detail-panel">
         <div class="list-header">
           <h2>{{ setName }}</h2>
@@ -123,17 +123,7 @@ const totalNights = computed(() =>
 
 <style scoped>
 .list-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(32, 33, 36, 0.5);
   z-index: 200;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .list-panel {

@@ -1,5 +1,5 @@
 <template>
-  <div class="pe-overlay" @click.self="handleClose">
+  <div class="modal-overlay pe-overlay" @click.self="handleClose">
     <div class="pe-panel">
 
       <!-- ヘッダー -->
@@ -808,17 +808,7 @@ function selectCountry(key, item, s) {
 <style scoped>
 /* ── オーバーレイ ─────────────────────────────── */
 .pe-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(32, 33, 36, 0.5);
   z-index: 300;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .pe-panel {

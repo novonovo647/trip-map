@@ -1,5 +1,5 @@
 <template>
-  <div class="pm-overlay" @click.self="handleClose">
+  <div class="modal-overlay pm-overlay" @click.self="handleClose">
     <div class="pm-panel">
 
       <!-- ヘッダー -->
@@ -395,13 +395,7 @@ function startCourseDrag(e, si, pi) {
 
 <style scoped>
 .pm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(32,33,36,0.5);
   z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .pm-panel {
   background: var(--bg-surface);
