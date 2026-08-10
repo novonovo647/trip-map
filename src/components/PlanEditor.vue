@@ -94,8 +94,11 @@
                     />
                     <span class="pe-label-sm">泊</span>
                   </div>
-                  <div class="pe-plan-actions" @click.stop v-if="!singlePlan">
-                    <button class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
+                  <div class="pe-plan-actions" @click.stop>
+                    <button class="pe-icon-btn sm" @click="toggleAllItems(pi, plan)" title="都市・移動をすべて開閉">
+                      {{ plan.cities.every((_, ci) => isItemOpen(pi, ci)) ? '⊟' : '⊞' }}
+                    </button>
+                    <button v-if="!singlePlan" class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
                   </div>
                 </div>
 
@@ -117,6 +120,7 @@
                     >
                       <div class="pe-city-main">
                         <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
+                        <span class="pe-item-toggle" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</span>
                         <span class="pe-badge city">都市</span>
                         <div class="pe-city-name-wrap">
                           <input v-model="item.name" placeholder="都市名" class="pe-city-name-input"
@@ -168,6 +172,7 @@
                           <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
                         </div>
                       </div>
+                      <template v-if="isItemOpen(pi, ci)">
                       <div class="pe-city-sub">
                         <label class="pe-sub-label">メモ</label>
                         <textarea v-model="item.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-sub-input pe-sub-textarea" rows="2"></textarea>
@@ -206,6 +211,7 @@
                           <button class="pe-add-btn sm" @click="addSpot(item)">＋ スポットを追加</button>
                         </template>
                       </div>
+                      </template>
                     </div>
 
                     <!-- 移動手段 -->
@@ -221,8 +227,10 @@
                       }"
                     >
                       <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
+                      <span class="pe-item-toggle" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</span>
                       <span class="pe-badge transport">移動</span>
-                      <div class="pe-transport-fields">
+                      <span v-if="!isItemOpen(pi, ci)" class="pe-tr-summary">{{ modeLabel(item) }}{{ item.transport ? ' ' + item.transport : '' }}</span>
+                      <div v-if="isItemOpen(pi, ci)" class="pe-transport-fields">
                         <div class="pe-tr-selects">
                           <select v-model="item.ticketType" class="pe-tr-select">
                             <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
@@ -413,6 +421,7 @@ const activeSet = ref(
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
 const openHotels = ref({})  // { [`${pi}-${ci}`]: boolean }
+const openItem  = ref({})   // { [`${pi}-${ci}`]: boolean } 都市・移動の開閉（未設定は開扱い）
 
 // 表示対象のコース（単一コースモードは対象の1つのみ）
 const displayPlans = computed(() => {
@@ -456,6 +465,24 @@ function toggleSpots(pi, ci) {
 function toggleHotels(pi, ci) {
   const key = `${pi}-${ci}`
   openHotels.value[key] = !openHotels.value[key]
+}
+
+function isItemOpen(pi, ci) {
+  return openItem.value[`${pi}-${ci}`] !== false   // 既定は開いた状態
+}
+
+function toggleItem(pi, ci) {
+  openItem.value[`${pi}-${ci}`] = !isItemOpen(pi, ci)
+}
+
+function toggleAllItems(pi, plan) {
+  const next = !plan.cities.every((_, ci) => isItemOpen(pi, ci))
+  plan.cities.forEach((_, ci) => { openItem.value[`${pi}-${ci}`] = next })
+}
+
+function modeLabel(item) {
+  const m = TRANSPORT_MODES.find(m => m.value === item.mode)
+  return m ? `${m.emoji} ${m.label}` : ''
 }
 
 // ── ポインタ D&D ハンドラ ─────────────────────────────────
@@ -1392,6 +1419,21 @@ function selectCountry(key, item, s) {
   line-height: 1;
 }
 .pe-drag-handle:active { cursor: grabbing; }
+.pe-item-toggle {
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.pe-tr-summary {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .pe-plan.dnd-over,
 .pe-city-card.dnd-over,
 .pe-transport-card.dnd-over {
