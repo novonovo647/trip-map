@@ -33,8 +33,9 @@
   --shadow-2: 0 1px 3px rgba(60,64,67,0.20), 0 4px 8px rgba(60,64,67,0.12);
   --shadow-3: 0 4px 12px rgba(60,64,67,0.18), 0 8px 24px rgba(60,64,67,0.14);
 
-  /* モーダルの幅・高さ（全モーダル共通） */
-  --modal-height: calc(min(88vh, 840px) - env(safe-area-inset-top, 0px));
+  /* モーダルの幅・高さ・上下余白（全モーダル共通） */
+  --modal-margin: 16px;  /* ビューポート上下端との余白（上下共通） */
+  --modal-height: min(840px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--modal-margin) * 2));
   --modal-width:  min(720px, 94vw);
 
   /* モーダルの背景オーバーレイ色（全モーダル共通） */
@@ -56,9 +57,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + var(--modal-margin));
   padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--modal-margin));
   padding-left: env(safe-area-inset-left, 0px);
 }
 

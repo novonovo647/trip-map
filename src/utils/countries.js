@@ -62,6 +62,7 @@ export const STRIKETHROUGH_NAMES = new Set([
   'Pakistan', 'Somaliland', 'Palestine',
   'Niger',
   'Nigeria', 'Eritrea', 'Burundi', 'Belarus',
+  'Venezuela',
 ])
 
 // 行かない国（取り消し線表示・マップ薄いグレー）
