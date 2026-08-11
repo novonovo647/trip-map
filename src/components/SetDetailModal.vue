@@ -15,7 +15,7 @@
           <div v-for="(plan, j) in plans" :key="j" class="plan-detail" :style="{ borderLeftColor: plan.color }">
             <h3 class="plan-detail-toggle" :style="{ color: plan.color }" @click="toggle(j)">
               <span class="plan-toggle-icon">{{ openPlans[j] ? '▾' : '▸' }}</span>
-              {{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}
+              {{ plan.label }}{{ sumNights(plan) ? `（${sumNights(plan)}泊）` : '' }}
             </h3>
             <div v-show="openPlans[j]">
               <!-- タイムライン: 都市 / 移動エントリー混在 -->
@@ -28,6 +28,7 @@
                     <span v-if="item.ticketType" class="stop-leg-ticket">{{ item.ticketType }}</span>
                     <a v-if="item.url" :href="item.url" target="_blank" rel="noopener" class="stop-leg-link">{{ item.transport }}</a>
                     <span v-else-if="item.transport" class="stop-leg-text">{{ item.transport }}</span>
+                    <span v-if="item.nights" class="stop-leg-nights">{{ item.nights }}泊</span>
                     <span v-if="item.price" class="stop-leg-price">{{ formatYen(item.price) }}</span>
                     <span v-if="item.memo" class="stop-memo" v-html="memoHtml(item.memo)"></span>
                   </div>
@@ -80,6 +81,7 @@
 import { ref, watch, computed } from 'vue'
 import { memoHtml, formatYen } from '../utils/text.js'
 import { modeEmoji } from '../utils/transport.js'
+import { sumNights } from '../utils/plan.js'
 
 const props = defineProps({
   setName:     { type: String,   default: '' },
@@ -117,7 +119,7 @@ const grandTotal = computed(() =>
 
 // プラン内の全コースの泊数合計
 const totalNights = computed(() =>
-  props.plans.reduce((acc, p) => acc + (Number(p.nights) || 0), 0)
+  props.plans.reduce((acc, p) => acc + sumNights(p), 0)
 )
 </script>
 
@@ -229,6 +231,12 @@ const totalNights = computed(() =>
   font-size: 0.72rem;
   color: var(--success);
   font-weight: 600;
+}
+
+.stop-leg-nights {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .stop-header {

@@ -9,3 +9,8 @@ export function isTransport(item) {
 export function isCity(item) {
   return !!item && ('name' in item)
 }
+
+// コースの泊数合計（都市・移動エントリーの泊数を集計）。
+export function sumNights(plan) {
+  return (plan?.cities || []).reduce((acc, item) => acc + (Number(item?.nights) || 0), 0)
+}

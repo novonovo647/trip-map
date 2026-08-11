@@ -83,14 +83,8 @@
                     class="pe-color-picker"
                     title="カラー"
                   />
-                  <div class="pe-nights-row" @click.stop>
-                    <input
-                      type="number"
-                      v-model.number="plan.nights"
-                      min="0"
-                      class="pe-nights-input"
-                      placeholder="-"
-                    />
+                  <div class="pe-nights-row">
+                    <span class="pe-nights-total">{{ sumNights(plan) }}</span>
                     <span class="pe-label-sm">泊</span>
                   </div>
                   <div class="pe-plan-actions" @click.stop>
@@ -230,19 +224,23 @@
                       <span class="pe-badge transport">移動</span>
                       <div class="pe-item-main">
                         <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
-                        <select v-model="item.mode" class="pe-tr-select">
-                          <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
-                        </select>
-                        <select v-model="item.ticketType" class="pe-tr-select">
-                          <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
-                        </select>
+                        <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
+                        <span class="pe-label-sm">泊</span>
                         <div class="pe-item-btns">
                           <button class="icon-btn sm danger" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
                           <button class="icon-btn toggle sm" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</button>
                         </div>
                       </div>
                       <div v-if="isItemOpen(pi, ci)" class="pe-item-details">
-                        <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
+                        <div class="pe-tr-row">
+                          <select v-model="item.mode" class="pe-tr-select">
+                            <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
+                          </select>
+                          <select v-model="item.ticketType" class="pe-tr-select">
+                            <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
+                          </select>
+                          <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
+                        </div>
                         <input v-model="item.url"       :placeholder="PLACEHOLDER.URL"       class="pe-tr-url"  />
                         <textarea v-model="item.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-tr-memo pe-sub-textarea" rows="2"></textarea>
                       </div>
@@ -273,7 +271,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { isCity } from '../utils/plan.js'
+import { isCity, sumNights } from '../utils/plan.js'
 import { TRANSPORT_MODES, TICKET_TYPES, DEFAULT_MODE, DEFAULT_TICKET } from '../utils/transport.js'
 import { PLACEHOLDER } from '../utils/labels.js'
 import { useGeocoding } from '../composables/useGeocoding.js'
@@ -335,7 +333,8 @@ function buildCleanedData() {
   const cleaned = JSON.parse(JSON.stringify(data))
   cleaned.forEach(ps => {
     ps.plans.forEach(plan => {
-      if (!plan.nights && plan.nights !== 0) plan.nights = null
+      // コース泊数は保存せず都度算出するため、旧フィールドがあれば除去する
+      delete plan.nights
       // 都市・移動エントリーとも無条件で保持（意図的に追加した行を保存時に消さない）
       plan.cities.forEach(item => {
         if (isCity(item)) {
@@ -361,6 +360,7 @@ function buildCleanedData() {
             if (item.hotels.length === 0) delete item.hotels
           }
         } else {
+          if (!item.nights && item.nights !== 0) delete item.nights
           if (!item.url?.trim())  delete item.url
           if (!item.memo?.trim()) delete item.memo
           if (item.price === '' || item.price === null || item.price === undefined) delete item.price
@@ -567,7 +567,6 @@ function addPlan() {
   const pi = data[activeSet.value].plans.length
   data[activeSet.value].plans.push({
     label:  '新しいコース',
-    nights: null,
     color:  '#4a90e2',
     cities: [],
   })
@@ -586,7 +585,7 @@ function addCity(plan) {
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', url: '', memo: '', price: null, ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
+  plan.cities.push({ transport: '', nights: null, url: '', memo: '', price: null, ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
 }
 
 function deleteItem(cities, ci) {
@@ -939,6 +938,13 @@ function selectCountry(key, item, s) {
   gap: 3px;
   flex-shrink: 0;
 }
+.pe-nights-total {
+  min-width: 24px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
 .pe-nights-input {
   width: 44px;
   background: var(--bg-input);
@@ -1217,6 +1223,12 @@ function selectCountry(key, item, s) {
   text-align: right;
 }
 .pe-tr-price:focus { border-color: var(--accent); }
+.pe-tr-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
 
 /* 追加ボタン */
 .pe-add-row {

@@ -74,7 +74,7 @@
             :class="{ active: selectedPlan.has(j) }"
             :style="selectedPlan.has(j) ? { borderColor: plan.color, color: plan.color } : {}"
             @click="togglePlanTab(j)"
-          >{{ plan.label }}{{ plan.nights ? `（${plan.nights}泊）` : '' }}</button>
+          >{{ plan.label }}{{ sumNights(plan) ? `（${sumNights(plan)}泊）` : '' }}</button>
         </template>
       </div>
     </div>
@@ -206,7 +206,7 @@
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { geodesicPoints, unwrapLongitudes, wrapAntimeridian } from '../utils/geo.js'
-import { isTransport } from '../utils/plan.js'
+import { isTransport, sumNights } from '../utils/plan.js'
 import { TRANSPORT_MODES, DEFAULT_MODE, DEFAULT_TICKET, modeLabel } from '../utils/transport.js'
 import { MAP_COLORS } from '../utils/mapColors.js'
 import {
@@ -273,7 +273,7 @@ function resolvePlan(plan) {
     .map(c => {
       if (isTransport(c)) {
         // 移動エントリー（transport のみ）
-        return { _type: 'transport', transport: c.transport ?? null, url: c.url ?? null, memo: c.memo ?? null, price: c.price ?? null, ticketType: c.ticketType ?? DEFAULT_TICKET, mode: c.mode ?? DEFAULT_MODE }
+        return { _type: 'transport', transport: c.transport ?? null, nights: c.nights ?? null, url: c.url ?? null, memo: c.memo ?? null, price: c.price ?? null, ticketType: c.ticketType ?? DEFAULT_TICKET, mode: c.mode ?? DEFAULT_MODE }
       }
       const coords = cityData[c.name]?.coords ?? null
       // 座標未取得でも一覧には表示する（地図描画のみ coords を必要とする）

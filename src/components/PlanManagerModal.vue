@@ -45,6 +45,7 @@
             <span class="pm-set-handle" @pointerdown.prevent="startSetDrag($event, si)">⠿</span>
             <button class="pm-select-btn" @click="selectSet(si)" :title="currentSelected === si ? '表示中' : '地図に表示'">{{ currentSelected === si ? '★' : '☆' }}</button>
             <input class="pm-set-name pm-name-input" v-model="ps.setName" placeholder="プラン名" />
+            <span v-if="setNights(ps) > 0" class="pm-nights">{{ setNights(ps) }}泊</span>
             <button class="icon-btn" @click="openDetail(si)" title="プラン詳細">🔍</button>
             <button class="icon-btn" @click="editSet(si)" title="詳細編集">✎</button>
             <button class="icon-btn danger" @click="deleteSet(si)" title="削除">🗑</button>
@@ -65,6 +66,7 @@
           >
             <span class="pm-course-handle" @pointerdown.prevent="startCourseDrag($event, si, pi)">⠿</span>
             <input class="pm-course-name pm-name-input" v-model="plan.label" placeholder="コース名" />
+            <span v-if="sumNights(plan)" class="pm-nights">{{ sumNights(plan) }}泊</span>
             <button class="icon-btn" @click="editCourse(si, pi)" title="詳細編集">✎</button>
             <button class="icon-btn danger" @click="deletePlan(si, pi)" title="削除">🗑</button>
           </div>
@@ -77,6 +79,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { usePlanPersistence } from '../composables/usePlanPersistence.js'
+import { sumNights } from '../utils/plan.js'
 
 const props = defineProps({
   initialData:     { type: Array,   required: true },
@@ -113,6 +116,11 @@ const { saveStatus, saveError, handleClose, flush } = usePlanPersistence(data, {
 
 function addSet() {
   data.push({ setName: '新しいプラン', plans: [] })
+}
+
+// プラン内の全コースの泊数合計
+function setNights(ps) {
+  return ps.plans.reduce((acc, p) => acc + sumNights(p), 0)
 }
 
 function deleteSet(si) {
@@ -391,6 +399,12 @@ function startCourseDrag(e, si, pi) {
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pm-nights {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .pm-course-row {
