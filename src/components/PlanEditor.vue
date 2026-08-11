@@ -246,6 +246,12 @@
                       </div>
                     </div>
 
+                    <!-- カード直下に挿入（ホバーで表示） -->
+                    <div class="pe-insert-row">
+                      <button class="pe-insert-btn" @click="insertCity(plan, ci)" title="ここに都市を追加">＋都市</button>
+                      <button class="pe-insert-btn" @click="insertTransport(plan, ci)" title="ここに移動を追加">＋移動</button>
+                    </div>
+
                   </template>
 
                   <!-- 追加ボタン -->
@@ -580,13 +586,20 @@ function deletePlan(pi) {
 }
 
 // ── 都市・移動 CRUD ─────────────────────────────
+function makeCity()      { return { name: '', nights: null, memo: '', spots: [] } }
+function makeTransport() { return { transport: '', nights: null, url: '', memo: '', price: null, ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE } }
+
 function addCity(plan) {
-  plan.cities.push({ name: '', nights: null, memo: '', spots: [] })
+  plan.cities.push(makeCity())
 }
 
 function addTransport(plan) {
-  plan.cities.push({ transport: '', nights: null, url: '', memo: '', price: null, ticketType: DEFAULT_TICKET, mode: DEFAULT_MODE })
+  plan.cities.push(makeTransport())
 }
+
+// 指定アイテムの直下に挿入
+function insertCity(plan, ci)      { plan.cities.splice(ci + 1, 0, makeCity()) }
+function insertTransport(plan, ci) { plan.cities.splice(ci + 1, 0, makeTransport()) }
 
 function deleteItem(cities, ci) {
   cities.splice(ci, 1)
@@ -1254,6 +1267,33 @@ function selectCountry(key, item, s) {
 .pe-add-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 .pe-add-btn.sm    { padding: 2px 8px; font-size: 0.7rem; }
 .add-plan-btn     { align-self: flex-start; }
+
+/* カード間のホバー追加行（高さ固定・ボタンは opacity で出し入れしてちらつき防止） */
+.pe-insert-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  height: 12px;
+  margin: -2px 0;
+}
+.pe-insert-btn {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
+  color: var(--accent);
+  border-radius: 5px;
+  padding: 1px 10px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, border-color 0.12s, background 0.12s;
+}
+.pe-insert-row:hover .pe-insert-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pe-insert-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 
 /* ── ドラッグハンドル ──────────────────────────── */
 .pe-drag-handle {

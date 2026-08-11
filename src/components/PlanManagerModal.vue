@@ -68,6 +68,7 @@
             <input class="pm-course-name pm-name-input" v-model="plan.label" placeholder="コース名" />
             <span v-if="sumNights(plan)" class="pm-nights">{{ sumNights(plan) }}泊</span>
             <button class="icon-btn" @click="editCourse(si, pi)" title="詳細編集">✎</button>
+            <button class="icon-btn" @click="duplicateCourse(si, pi)" title="複製">⧉</button>
             <button class="icon-btn danger" @click="deletePlan(si, pi)" title="削除">🗑</button>
           </div>
         </div>
@@ -79,7 +80,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { usePlanPersistence } from '../composables/usePlanPersistence.js'
-import { sumNights } from '../utils/plan.js'
+import { sumNights, COURSE_COPY_SUFFIX } from '../utils/plan.js'
 
 const props = defineProps({
   initialData:     { type: Array,   required: true },
@@ -132,6 +133,14 @@ function deletePlan(si, pi) {
   const plan = data[si].plans[pi]
   if (!confirm(`「${plan.label || '（名称なし）'}」を削除しますか？`)) return
   data[si].plans.splice(pi, 1)
+}
+
+// コースを複製し、元コースの直下に挿入する。
+function duplicateCourse(si, pi) {
+  const src = data[si].plans[pi]
+  const copy = JSON.parse(JSON.stringify(src))
+  copy.label = `${src.label || ''}${COURSE_COPY_SUFFIX}`
+  data[si].plans.splice(pi + 1, 0, copy)
 }
 
 function selectSet(si) {

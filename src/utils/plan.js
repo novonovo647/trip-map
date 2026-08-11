@@ -14,3 +14,6 @@ export function isCity(item) {
 export function sumNights(plan) {
   return (plan?.cities || []).reduce((acc, item) => acc + (Number(item?.nights) || 0), 0)
 }
+
+// コース複製時にコース名へ付与する接尾辞。
+export const COURSE_COPY_SUFFIX = '（コピー）'
