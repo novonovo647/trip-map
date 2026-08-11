@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay list-overlay" @click.self="$emit('close')">
+    <div class="modal-overlay" @click.self="$emit('close')">
       <div class="list-panel set-detail-panel">
         <div class="list-header">
           <h2>{{ setName }}</h2>
@@ -122,71 +122,7 @@ const totalNights = computed(() =>
 </script>
 
 <style scoped>
-.list-overlay {
-  z-index: 200;
-}
-
-.list-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: var(--modal-width);
-  height: var(--modal-height);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--shadow-3);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  gap: 8px;
-}
-
-.list-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.list-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text);
-  font-weight: 500;
-}
-
-.edit-mode-btn {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #fff;
-  border-radius: 6px;
-  padding: 3px 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-.edit-mode-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+.modal-overlay { z-index: var(--z-modal); }
 
 /* セット詳細モーダル */
 .set-detail-panel {

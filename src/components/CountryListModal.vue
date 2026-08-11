@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay list-overlay" @click.self="$emit('close')">
+    <div class="modal-overlay" @click.self="$emit('close')">
       <div class="list-panel">
         <div class="list-header">
           <h2>
@@ -13,18 +13,18 @@
           <div class="list-header-actions">
             <button v-if="canEdit && !countryEditMode && listMode !== 'planned'" class="edit-mode-btn" @click="$emit('enter-edit')">✎ 編集</button>
             <template v-if="countryEditMode">
-              <span v-if="countryEditStatus !== 'idle'" class="ce-status" :class="countryEditStatus">
+              <span v-if="countryEditStatus !== 'idle'" class="save-status" :class="countryEditStatus">
                 {{ countryEditStatus === 'saving' ? '保存中…' : countryEditStatus === 'error' ? '⚠ 保存失敗' : countryEditStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
               </span>
               <template v-if="countryEditStatus === 'external' && countryEditorInfo">
-                <img v-if="countryEditorInfo.photo" :src="countryEditorInfo.photo" class="ce-editor-avatar" :title="countryEditorInfo.name" referrerpolicy="no-referrer" />
-                <span v-else class="ce-editor-name">{{ countryEditorInfo.name }}</span>
+                <img v-if="countryEditorInfo.photo" :src="countryEditorInfo.photo" class="editor-avatar" :title="countryEditorInfo.name" referrerpolicy="no-referrer" />
+                <span v-else class="editor-name">{{ countryEditorInfo.name }}</span>
               </template>
             </template>
             <button class="close-btn" @click="$emit('close')">✕</button>
           </div>
         </div>
-        <div v-if="countryEditMode && countryEditError" class="edit-error">{{ countryEditError }}</div>
+        <div v-if="countryEditMode && countryEditError" class="modal-error">{{ countryEditError }}</div>
         <div class="list-body">
           <template v-for="region in REGION_ORDER" :key="region">
             <div v-if="groupedList[region]" class="region-section">
@@ -118,82 +118,7 @@ const vOverflow = {
 </script>
 
 <style scoped>
-.list-overlay {
-  z-index: 200;
-}
-
-.list-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: var(--modal-width);
-  height: var(--modal-height);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--shadow-3);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  gap: 8px;
-}
-
-.list-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.list-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text);
-  font-weight: 500;
-}
-
-/* 編集モードボタン */
-.edit-mode-btn {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #fff;
-  border-radius: 6px;
-  padding: 3px 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-.edit-mode-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-/* autosave ステータス */
-.ce-status {
-  font-size: 0.78rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.ce-status.saved    { color: var(--success); }
-.ce-status.saving   { color: var(--text-muted); }
-.ce-status.error    { color: var(--danger); }
-.ce-status.external { color: var(--accent); }
-.ce-editor-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  object-fit: cover;
-}
-.ce-editor-name {
-  font-size: 0.75rem;
-  color: var(--accent);
-}
+.modal-overlay { z-index: var(--z-modal); }
 
 /* 変更数インジケータ */
 .edit-diff-count {
@@ -202,30 +127,6 @@ const vOverflow = {
   font-weight: normal;
   margin-left: 6px;
 }
-
-/* エラー表示 */
-.edit-error {
-  background: var(--danger-soft);
-  border-left: 3px solid var(--danger);
-  color: var(--danger);
-  font-size: 0.8rem;
-  padding: 6px 16px;
-  flex-shrink: 0;
-  word-break: break-all;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
 
 .list-body {
   overflow-y: auto;

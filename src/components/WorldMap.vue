@@ -171,7 +171,6 @@
         :editorInfo="planEditorInfo"
         :currentSelected="selectedSet"
         :canEdit="!!currentUser"
-        :initialMode="planManagerMode"
         @close="showPlanManager = false"
         @select="onSelectSet"
         @edit="onPlanManagerEdit"
@@ -865,7 +864,6 @@ const planEditorInfo     = ref(null)   // { name, photo }
 const planEditorSetIndex = ref(null)   // null=全体, number=単一プラン表示
 const planEditorSinglePlan = ref(null) // null | { si, pi } 単一コース表示
 const showPlanManager    = ref(false)
-const planManagerMode    = ref('select') // 管理モーダルの初期モード
 const returnToManager    = ref(false)    // エディタを閉じたら管理モーダルへ戻る
 const returnToDetailSet  = ref(null)     // エディタを閉じたら詳細モーダルへ戻る（setIndex）
 
@@ -887,7 +885,6 @@ function openPlanEditor(arg = null) {
 function openPlanManager() {
   planExternalData.value = null
   planEditorInfo.value   = null
-  planManagerMode.value  = 'select'
   showPlanManager.value  = true
 }
 
@@ -896,7 +893,6 @@ function onPlanEditorClose() {
   showPlanEditor.value = false
   if (returnToManager.value) {
     returnToManager.value = false
-    planManagerMode.value = 'edit'
     showPlanManager.value = true
   } else if (returnToDetailSet.value !== null) {
     modalSetIndex.value = returnToDetailSet.value
@@ -910,7 +906,7 @@ function onDetailEdit(si) {
   returnToDetailSet.value = si
 }
 
-// プラン管理モーダルでの選択（si=null で選択解除）
+// プラン管理モーダルでの選択（si=null で選択解除）。選択したらモーダルを閉じる
 function onSelectSet(si) {
   if (si === null) clearPlan()
   else selectSetFromDD(si)
@@ -1128,13 +1124,6 @@ onUnmounted(() => {
   gap: 8px;
   box-shadow: var(--shadow-3);
 }
-.burger-hint {
-  font-size: 0.72rem;
-  color: var(--text-faint);
-  margin: 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
 .burger-menu a {
   font-size: 0.8rem;
   color: var(--accent);
@@ -1182,7 +1171,6 @@ onUnmounted(() => {
   color: var(--text-muted);
   white-space: nowrap;
 }
-.plan-selector-wrap { position: relative; }
 .plan-selector {
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -1201,7 +1189,6 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 .plan-selector:hover { border-color: var(--accent); color: var(--text); }
-.selector-arrow { font-size: 0.7rem; color: var(--accent); flex-shrink: 0; }
 
 .plan-select-btn {
   flex-shrink: 0;
@@ -1221,62 +1208,6 @@ onUnmounted(() => {
   color: var(--text-faint);
   font-style: italic;
 }
-
-.plan-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  min-width: 260px;
-  max-height: 260px;
-  overflow-y: auto;
-  z-index: 150;
-  box-shadow: var(--shadow-3);
-  padding: 4px 0;
-}
-.dropdown-item {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  padding: 7px 14px 7px 22px;
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.dropdown-item:hover { background: var(--bg-hover); color: var(--text); }
-.dropdown-item.active { font-weight: 600; color: var(--accent); background: var(--bg-selected); }
-.item-clear { font-size: 0.75rem; color: var(--text-faint); padding-left: 14px; font-style: italic; }
-
-.detail-btn {
-  flex-shrink: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: 6px;
-  padding: 2px 10px;
-  font-size: 0.73rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.detail-btn:hover { background: var(--bg-selected); border-color: var(--accent); }
-
-.manage-btn {
-  flex-shrink: 0;
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #fff;
-  border-radius: 5px;
-  padding: 2px 8px;
-  font-size: 0.8rem;
-  line-height: 1.3;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.manage-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 .plan-tab {
   background: var(--bg-surface);

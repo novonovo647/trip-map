@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay pe-overlay" @click.self="handleClose">
+  <div class="modal-overlay" @click.self="handleClose">
     <div class="pe-panel">
 
       <!-- ヘッダー -->
@@ -13,18 +13,18 @@
         />
         <h2 v-else>✎ プランを編集</h2>
         <div class="pe-header-actions">
-          <span v-if="saveStatus !== 'idle'" class="pe-status" :class="saveStatus">
+          <span v-if="saveStatus !== 'idle'" class="save-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
           </span>
           <!-- 他ユーザーが編集中のアイコン -->
           <template v-if="editorInfo && saveStatus === 'external'">
-            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pe-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
-            <span v-else class="pe-editor-name">{{ editorInfo.name }}</span>
+            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
+            <span v-else class="editor-name">{{ editorInfo.name }}</span>
           </template>
           <button class="pe-close-btn" @click="handleClose" title="閉じる">✕</button>
         </div>
       </div>
-      <div v-if="saveError" class="pe-error">{{ saveError }}</div>
+      <div v-if="saveError" class="modal-error">{{ saveError }}</div>
 
       <!-- ボディ: サイドバー + コンテンツ -->
       <div class="pe-body">
@@ -39,7 +39,7 @@
             @click="selectSet(si)"
           >
             <span class="pe-set-tab-name">{{ ps.setName || '（名称なし）' }}</span>
-            <button class="pe-icon-btn del sm" @click.stop="deleteSet(si)" title="このプランを削除">🗑</button>
+            <button class="icon-btn danger sm" @click.stop="deleteSet(si)" title="このプランを削除">🗑</button>
           </div>
           <button class="pe-add-set-btn" @click="addSet">＋ プラン追加</button>
         </div>
@@ -70,7 +70,6 @@
                 <!-- プランヘッダー -->
                 <div class="pe-plan-bar" @click="togglePlan(pi)">
                   <span class="pe-drag-handle" @pointerdown.prevent="startPlanDrag($event, pi)" @click.stop>⠿</span>
-                  <span class="pe-plan-arrow">{{ openPlan[pi] ? '▾' : '▸' }}</span>
                   <input
                     class="pe-plan-name"
                     v-model="plan.label"
@@ -95,10 +94,11 @@
                     <span class="pe-label-sm">泊</span>
                   </div>
                   <div class="pe-plan-actions" @click.stop>
-                    <button class="pe-icon-btn sm" @click="toggleAllItems(pi, plan)" title="都市・移動をすべて開閉">
+                    <button class="icon-btn sm" @click="toggleAllItems(pi, plan)" title="都市・移動をすべて開閉">
                       {{ plan.cities.every((_, ci) => isItemOpen(pi, ci)) ? '⊟' : '⊞' }}
                     </button>
-                    <button v-if="!singlePlan" class="pe-icon-btn del sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
+                    <button v-if="!singlePlan" class="icon-btn danger sm" @click="deletePlan(pi)" title="コースを削除">🗑</button>
+                    <button class="icon-btn toggle sm" @click.stop="togglePlan(pi)">{{ openPlan[pi] ? '▾' : '▸' }}</button>
                   </div>
                 </div>
 
@@ -109,7 +109,7 @@
                     <!-- 都市 -->
                     <div
                       v-if="isCity(item)"
-                      class="pe-city-card"
+                      class="pe-item-card pe-city-card"
                       data-item-type="city"
                       :data-pi="pi"
                       :data-ci="ci"
@@ -118,10 +118,9 @@
                         'dnd-dragging': dragCityInfo?.pi === pi && dragCityInfo?.ci === ci
                       }"
                     >
-                      <div class="pe-city-main">
-                        <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
-                        <span class="pe-item-toggle" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</span>
-                        <span class="pe-badge city">都市</span>
+                      <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
+                      <span class="pe-badge city">都市</span>
+                      <div class="pe-item-main">
                         <div class="pe-city-name-wrap">
                           <input v-model="item.name" placeholder="都市名" class="pe-city-name-input" />
                           <div class="pe-city-country-row">
@@ -168,28 +167,28 @@
                         <input type="number" v-model.number="item.nights" min="0" class="pe-city-nights" placeholder="-" />
                         <span class="pe-label-sm">泊</span>
                         <div class="pe-item-btns">
-                          <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
+                          <button class="icon-btn sm danger" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
+                          <button class="icon-btn toggle sm" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</button>
                         </div>
                       </div>
-                      <template v-if="isItemOpen(pi, ci)">
-                      <div class="pe-city-sub">
-                        <label class="pe-sub-label">メモ</label>
+                      <div v-if="isItemOpen(pi, ci)" class="pe-item-details">
                         <textarea v-model="item.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-sub-input pe-sub-textarea" rows="2"></textarea>
-                      </div>
                       <!-- ホテル -->
                       <div class="pe-hotels-section">
                         <div class="pe-spots-toggle" @click="toggleHotels(pi, ci)">
                           <span>🏨 ホテル ({{ (item.hotels || []).length }}件)</span>
-                          <span class="pe-spots-arrow">{{ openHotels[`${pi}-${ci}`] ? '▾' : '▸' }}</span>
+                          <button class="icon-btn toggle sm">{{ openHotels[`${pi}-${ci}`] ? '▾' : '▸' }}</button>
                         </div>
                         <template v-if="openHotels[`${pi}-${ci}`]">
                           <div v-for="(hotel, hi) in ensureHotels(item)" :key="hi" class="pe-hotel-row">
-                            <input v-model="hotel.name" placeholder="ホテル名" class="pe-hotel-name" />
-                            <input type="number" v-model.number="hotel.nights" min="0" placeholder="泊" class="pe-hotel-nights" />
-                            <input type="number" v-model.number="hotel.price" min="0" placeholder="料金(円)" class="pe-hotel-price" />
-                            <input v-model="hotel.url"  :placeholder="PLACEHOLDER.URL"  class="pe-hotel-url"  />
-                            <input v-model="hotel.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-hotel-memo" />
-                            <button class="pe-icon-btn sm del" @click="deleteHotel(item, hi)" title="削除">🗑</button>
+                            <div class="pe-hotel-main">
+                              <input v-model="hotel.name" placeholder="ホテル名" class="pe-hotel-name" />
+                              <input type="number" v-model.number="hotel.nights" min="0" placeholder="泊" class="pe-hotel-nights" />
+                              <input type="number" v-model.number="hotel.price" min="0" placeholder="料金(円)" class="pe-hotel-price" />
+                              <input v-model="hotel.url"  :placeholder="PLACEHOLDER.URL"  class="pe-hotel-url"  />
+                              <button class="icon-btn sm danger" @click="deleteHotel(item, hi)" title="削除">🗑</button>
+                            </div>
+                            <textarea v-model="hotel.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-hotel-memo pe-sub-textarea" rows="2"></textarea>
                           </div>
                           <button class="pe-add-btn sm" @click="addHotel(item)">＋ ホテルを追加</button>
                         </template>
@@ -197,26 +196,28 @@
                       <!-- 観光スポット -->
                       <div class="pe-spots-section">
                         <div class="pe-spots-toggle" @click="toggleSpots(pi, ci)">
-                          <span>観光スポット ({{ (item.spots || []).length }}件)</span>
-                          <span class="pe-spots-arrow">{{ openSpots[`${pi}-${ci}`] ? '▾' : '▸' }}</span>
+                          <span>📍 観光スポット ({{ (item.spots || []).length }}件)</span>
+                          <button class="icon-btn toggle sm">{{ openSpots[`${pi}-${ci}`] ? '▾' : '▸' }}</button>
                         </div>
                         <template v-if="openSpots[`${pi}-${ci}`]">
                           <div v-for="(spot, spi) in ensureSpots(item)" :key="spi" class="pe-spot-row">
-                            <input v-model="spot.name" placeholder="スポット名" class="pe-spot-name" />
-                            <input v-model="spot.url"  :placeholder="PLACEHOLDER.URL"  class="pe-spot-url"  />
-                            <input v-model="spot.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-spot-memo" />
-                            <button class="pe-icon-btn sm del" @click="deleteSpot(item, spi)" title="削除">🗑</button>
+                            <div class="pe-spot-main">
+                              <input v-model="spot.name" placeholder="スポット名" class="pe-spot-name" />
+                              <input v-model="spot.url"  :placeholder="PLACEHOLDER.URL"  class="pe-spot-url"  />
+                              <button class="icon-btn sm danger" @click="deleteSpot(item, spi)" title="削除">🗑</button>
+                            </div>
+                            <textarea v-model="spot.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-spot-memo pe-sub-textarea" rows="2"></textarea>
                           </div>
                           <button class="pe-add-btn sm" @click="addSpot(item)">＋ スポットを追加</button>
                         </template>
                       </div>
-                      </template>
+                      </div>
                     </div>
 
                     <!-- 移動手段 -->
                     <div
                       v-else
-                      class="pe-transport-card"
+                      class="pe-item-card pe-transport-card"
                       data-item-type="city"
                       :data-pi="pi"
                       :data-ci="ci"
@@ -226,25 +227,24 @@
                       }"
                     >
                       <span class="pe-drag-handle" @pointerdown.prevent="startCityDrag($event, pi, ci)" @click.stop>⠿</span>
-                      <span class="pe-item-toggle" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</span>
                       <span class="pe-badge transport">移動</span>
-                      <span v-if="!isItemOpen(pi, ci)" class="pe-tr-summary">{{ modeLabel(item) }}{{ item.transport ? ' ' + item.transport : '' }}</span>
-                      <div v-if="isItemOpen(pi, ci)" class="pe-transport-fields">
-                        <div class="pe-tr-selects">
-                          <select v-model="item.mode" class="pe-tr-select">
-                            <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
-                          </select>
-                          <select v-model="item.ticketType" class="pe-tr-select">
-                            <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
-                          </select>
-                        </div>
-                        <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
+                      <div class="pe-item-main">
                         <input v-model="item.transport" placeholder="便名・路線名（任意）" class="pe-tr-main" />
-                        <input v-model="item.url"       :placeholder="PLACEHOLDER.URL"       class="pe-tr-url"  />
-                        <input v-model="item.memo"      :placeholder="PLACEHOLDER.MEMO"      class="pe-tr-memo" />
+                        <select v-model="item.mode" class="pe-tr-select">
+                          <option v-for="m in TRANSPORT_MODES" :key="m.value" :value="m.value">{{ m.emoji }} {{ m.label }}</option>
+                        </select>
+                        <select v-model="item.ticketType" class="pe-tr-select">
+                          <option v-for="t in TICKET_TYPES" :key="t.value" :value="t.value">{{ t.value }}</option>
+                        </select>
+                        <div class="pe-item-btns">
+                          <button class="icon-btn sm danger" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
+                          <button class="icon-btn toggle sm" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</button>
+                        </div>
                       </div>
-                      <div class="pe-item-btns">
-                        <button class="pe-icon-btn sm del" @click="deleteItem(plan.cities, ci)" title="削除">🗑</button>
+                      <div v-if="isItemOpen(pi, ci)" class="pe-item-details">
+                        <input type="number" v-model.number="item.price" min="0" placeholder="料金（円）" class="pe-tr-price" />
+                        <input v-model="item.url"       :placeholder="PLACEHOLDER.URL"       class="pe-tr-url"  />
+                        <textarea v-model="item.memo" :placeholder="PLACEHOLDER.MEMO" class="pe-tr-memo pe-sub-textarea" rows="2"></textarea>
                       </div>
                     </div>
 
@@ -483,11 +483,6 @@ function toggleAllItems(pi, plan) {
   plan.cities.forEach((_, ci) => { openItem.value[`${pi}-${ci}`] = next })
 }
 
-function modeLabel(item) {
-  const m = TRANSPORT_MODES.find(m => m.value === item.mode)
-  return m ? `${m.emoji} ${m.label}` : ''
-}
-
 // ── ポインタ D&D ハンドラ ─────────────────────────────────
 let _ghost = null
 
@@ -635,13 +630,6 @@ function deletePlan(pi) {
   data[activeSet.value].plans.splice(pi, 1)
 }
 
-function movePlan(pi, dir) {
-  const plans  = data[activeSet.value].plans
-  const target = pi + dir
-  if (target < 0 || target >= plans.length) return
-  const tmp = plans[pi]; plans[pi] = plans[target]; plans[target] = tmp
-}
-
 // ── 都市・移動 CRUD ─────────────────────────────
 function addCity(plan) {
   plan.cities.push({ name: '', nights: null, memo: '', spots: [] })
@@ -653,12 +641,6 @@ function addTransport(plan) {
 
 function deleteItem(cities, ci) {
   cities.splice(ci, 1)
-}
-
-function moveItem(cities, ci, dir) {
-  const target = ci + dir
-  if (target < 0 || target >= cities.length) return
-  const tmp = cities[ci]; cities[ci] = cities[target]; cities[target] = tmp
 }
 
 // ── スポット CRUD ───────────────────────────────
@@ -786,9 +768,7 @@ function selectCountry(key, item, s) {
 
 <style scoped>
 /* ── オーバーレイ ─────────────────────────────── */
-.pe-overlay {
-  z-index: 300;
-}
+.modal-overlay { z-index: var(--z-modal-front); }
 
 .pe-panel {
   background: var(--bg-surface);
@@ -838,16 +818,6 @@ function selectCountry(key, item, s) {
   align-items: center;
   gap: 6px;
 }
-.pe-status {
-  font-size: 0.78rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.pe-status.saved    { color: var(--success); }
-.pe-status.saving   { color: var(--text-muted); }
-.pe-status.error    { color: var(--danger); }
-.pe-status.external { color: var(--accent); }
 .pe-close-btn {
   background: transparent;
   border: none;
@@ -859,26 +829,6 @@ function selectCountry(key, item, s) {
   border-radius: 4px;
 }
 .pe-close-btn:hover { color: var(--text); background: var(--bg-hover); }
-.pe-editor-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  object-fit: cover;
-}
-.pe-editor-name {
-  font-size: 0.75rem;
-  color: var(--accent);
-}
-
-.pe-error {
-  background: var(--danger-soft);
-  border-left: 3px solid var(--danger);
-  color: var(--danger);
-  font-size: 0.78rem;
-  padding: 6px 16px;
-  flex-shrink: 0;
-}
 
 
 /* ── ボディ ───────────────────────────────────── */
@@ -1008,7 +958,6 @@ function selectCountry(key, item, s) {
   transition: background 0.15s;
 }
 .pe-plan-bar:hover { background: var(--bg-hover); }
-.pe-plan-arrow { font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
 .pe-plan-name {
   flex: 1;
   background: transparent;
@@ -1058,24 +1007,6 @@ function selectCountry(key, item, s) {
   flex-shrink: 0;
 }
 
-/* アイコンボタン共通 */
-.pe-icon-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  line-height: 1.4;
-  transition: background 0.15s;
-}
-.pe-icon-btn:hover:not(:disabled) { background: var(--bg-selected); }
-.pe-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.pe-icon-btn.del { border-color: var(--danger-border); color: var(--danger); }
-.pe-icon-btn.del:hover:not(:disabled) { background: var(--danger-soft); }
-.pe-icon-btn.sm { padding: 1px 5px; font-size: 0.7rem; }
-
 /* タイムライン */
 .pe-timeline {
   padding: 8px 10px 10px;
@@ -1098,20 +1029,20 @@ function selectCountry(key, item, s) {
 .pe-badge.city      { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--border); }
 .pe-badge.transport { background: var(--success-soft);  color: var(--success); border: 1px solid var(--border); }
 
-/* 都市カード */
+/* 都市・移動の共通レイアウト（⠿ ｜ バッジ ｜ 本体） */
+.pe-item-card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 5px;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.pe-item-main    { grid-row: 1; grid-column: 3; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.pe-item-details { grid-column: 3; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pe-city-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.pe-city-main {
-  display: flex;
-  align-items: center;
-  gap: 5px;
 }
 .pe-city-name-input {
   flex: 1;
@@ -1139,17 +1070,6 @@ function selectCountry(key, item, s) {
 .pe-city-nights:focus { border-color: var(--accent); }
 .pe-item-btns { display: flex; gap: 2px; flex-shrink: 0; }
 
-.pe-city-sub {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-.pe-sub-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  min-width: 28px;
-}
 .pe-sub-input {
   flex: 1;
   background: var(--bg-input);
@@ -1247,12 +1167,18 @@ function selectCountry(key, item, s) {
   transition: background 0.15s;
 }
 .pe-spots-toggle:hover { background: var(--bg-hover); }
-.pe-spots-arrow { font-size: 0.65rem; }
 .pe-spot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.pe-spot-row:last-of-type { border-bottom: none; }
+.pe-spot-main {
   display: flex;
   gap: 4px;
   align-items: center;
-  padding: 3px 0 0 4px;
 }
 .pe-spot-name, .pe-spot-url, .pe-spot-memo {
   background: var(--bg-input);
@@ -1266,14 +1192,21 @@ function selectCountry(key, item, s) {
 .pe-spot-name:focus, .pe-spot-url:focus, .pe-spot-memo:focus { border-color: var(--accent); }
 .pe-spot-name { flex: 1.2; min-width: 0; }
 .pe-spot-url  { flex: 1.5; min-width: 0; }
-.pe-spot-memo { flex: 1;   min-width: 0; }
+.pe-spot-memo { width: 100%; box-sizing: border-box; min-width: 0; }
 
 /* ホテル行 */
 .pe-hotel-row {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.pe-hotel-row:last-of-type { border-bottom: none; }
+.pe-hotel-main {
+  display: flex;
   gap: 4px;
   align-items: center;
-  padding: 3px 0 0 4px;
 }
 .pe-hotel-name, .pe-hotel-nights, .pe-hotel-price, .pe-hotel-url, .pe-hotel-memo {
   background: var(--bg-input);
@@ -1290,28 +1223,12 @@ function selectCountry(key, item, s) {
 .pe-hotel-nights { width: 44px; flex: none; text-align: right; }
 .pe-hotel-price  { width: 74px; flex: none; text-align: right; }
 .pe-hotel-url    { flex: 1.3; min-width: 0; }
-.pe-hotel-memo   { flex: 1;   min-width: 0; }
+.pe-hotel-memo   { width: 100%; box-sizing: border-box; min-width: 0; }
 
 /* 移動カード */
 .pe-transport-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
   background: #f2f8f4;
   border: 1px solid #cbe5d3;
-  border-radius: 6px;
-  padding: 6px 8px;
-}
-.pe-transport-fields {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.pe-tr-selects {
-  display: flex;
-  gap: 4px;
 }
 .pe-tr-select {
   background: var(--bg-surface);
@@ -1325,11 +1242,6 @@ function selectCountry(key, item, s) {
   flex: 1;
 }
 .pe-tr-select:focus { border-color: var(--accent); }
-.pe-tr-inputs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
 .pe-tr-main, .pe-tr-url, .pe-tr-memo {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -1388,21 +1300,6 @@ function selectCountry(key, item, s) {
   line-height: 1;
 }
 .pe-drag-handle:active { cursor: grabbing; }
-.pe-item-toggle {
-  cursor: pointer;
-  color: var(--text-faint);
-  font-size: 0.8rem;
-  padding: 0 2px;
-  flex-shrink: 0;
-  user-select: none;
-}
-.pe-tr-summary {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .pe-plan.dnd-over,
 .pe-city-card.dnd-over,
 .pe-transport-card.dnd-over {

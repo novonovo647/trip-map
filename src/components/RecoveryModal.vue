@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay list-overlay" @click.self="$emit('close')">
+    <div class="modal-overlay" @click.self="$emit('close')">
       <div class="list-panel recovery-panel">
         <div class="list-header">
           <h2>🕘 データ復旧</h2>
@@ -145,50 +145,7 @@ async function doRestore(item) {
 </script>
 
 <style scoped>
-.list-overlay {
-  z-index: 200;
-}
-
-.list-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: var(--modal-width);
-  height: var(--modal-height);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--shadow-3);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  gap: 8px;
-}
-.list-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text);
-  font-weight: 500;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-.close-btn:hover { background: var(--bg-hover); color: var(--text); }
+.modal-overlay { z-index: var(--z-modal); }
 
 .recovery-tabs {
   display: flex;

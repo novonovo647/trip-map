@@ -1,86 +1,57 @@
 <template>
-  <div class="modal-overlay pm-overlay" @click.self="handleClose">
+  <div class="modal-overlay" @click.self="handleClose">
     <div class="pm-panel">
 
       <!-- ヘッダー -->
       <div class="pm-header">
         <h2>📋 プラン管理</h2>
         <div class="pm-header-actions">
-          <span v-if="saveStatus !== 'idle'" class="pm-status" :class="saveStatus">
+          <span v-if="saveStatus !== 'idle'" class="save-status" :class="saveStatus">
             {{ saveStatus === 'saving' ? '保存中…' : saveStatus === 'error' ? '⚠ 保存失敗' : saveStatus === 'external' ? '↻ 同期済み' : '✓ 保存済み' }}
           </span>
           <template v-if="editorInfo && saveStatus === 'external'">
-            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="pm-editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
-            <span v-else class="pm-editor-name">{{ editorInfo.name }}</span>
+            <img v-if="editorInfo.photo" :src="editorInfo.photo" class="editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
+            <span v-else class="editor-name">{{ editorInfo.name }}</span>
           </template>
-          <button v-if="canEdit && mode === 'edit'" class="pm-mode-btn" @click="addSet">＋ プラン追加</button>
-          <button v-if="canEdit" class="pm-mode-btn" :class="{ active: mode === 'edit' }" @click="toggleMode">{{ mode === 'edit' ? '← 戻る' : '✎ セット編集' }}</button>
+          <button v-if="data.length" class="pm-mode-btn" @click="toggleAllSets">{{ allSetsCollapsed ? '⊞ すべて展開' : '⊟ すべて折りたたむ' }}</button>
+          <button v-if="canEdit" class="pm-mode-btn" @click="addSet">＋ プラン追加</button>
           <button class="pm-close-btn" @click="handleClose" title="閉じる">✕</button>
         </div>
       </div>
-      <div v-if="saveError" class="pm-error">{{ saveError }}</div>
+      <div v-if="saveError" class="modal-error">{{ saveError }}</div>
 
-      <!-- 選択モード -->
-      <div v-if="mode === 'select'" class="pm-body">
-        <p class="pm-hint">プランをドラッグして並び替え・プランをクリックで表示</p>
+      <div class="pm-body">
+        <p class="pm-hint">⠿ ドラッグで移動、☆ で地図に表示</p>
 
         <div
-          class="pm-card pm-card-none"
+          class="pm-set-none"
           :class="{ active: currentSelected === null }"
           @click="selectSet(null)"
-        >未選択</div>
-
-        <div
-          v-for="(ps, si) in data"
-          :key="si"
-          class="pm-card"
-          :data-idx="si"
-          :class="{
-            active: currentSelected === si,
-            'pm-dragging': draggingIdx === si,
-            'pm-drag-over': dragOverIdx === si && draggingIdx !== si
-          }"
-          @pointerdown="startCardDrag($event, si)"
-        >
-          <span class="pm-card-handle">⠿</span>
-          <div class="pm-card-body">
-            <div class="pm-card-name">{{ ps.setName || '（名称なし）' }}</div>
-            <div class="pm-card-courses">
-              <span
-                v-for="(plan, pi) in ps.plans" :key="pi"
-                v-course-overflow="`${si}-${pi}`"
-                class="pm-card-course"
-                :class="{
-                  expanded: expandedCourses.has(`${si}-${pi}`),
-                  truncated: truncatedCourses.has(`${si}-${pi}`)
-                }"
-                :title="plan.label || '（名称なし）'"
-                @pointerdown="onCoursePointerDown($event, `${si}-${pi}`)"
-              >{{ plan.label || '（名称なし）' }}</span>
-              <span v-if="ps.plans.length === 0" class="pm-card-empty">コースなし</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- セット編集モード -->
-      <div v-else class="pm-body">
-        <p class="pm-hint">⠿ コースをドラッグして並び替え・別プランへ移動</p>
+        >未選択（地図に表示しない）</div>
 
         <div
           v-for="(ps, si) in data"
           :key="si"
           class="pm-set-group"
-          :class="{ 'pm-set-drop': dragOverCourse?.si === si && dragOverCourse?.pi === -1 }"
+          :class="{
+            active: currentSelected === si,
+            'pm-set-drop': dragOverCourse?.si === si && dragOverCourse?.pi === -1,
+            'pm-set-dragging': dragSet === si,
+            'pm-set-reorder-over': dragOverSet === si && dragSet !== si
+          }"
           :data-set-drop="si"
         >
           <div class="pm-set-row">
+            <span class="pm-set-handle" @pointerdown.prevent="startSetDrag($event, si)">⠿</span>
+            <button class="pm-select-btn" @click="selectSet(si)" :title="currentSelected === si ? '表示中' : '地図に表示'">{{ currentSelected === si ? '★' : '☆' }}</button>
             <input class="pm-set-name pm-name-input" v-model="ps.setName" placeholder="プラン名" />
-            <button class="pm-edit-btn" @click="editSet(si)" title="詳細編集">✎</button>
-            <button class="pm-del-btn" @click="deleteSet(si)" title="削除">🗑</button>
+            <button class="icon-btn" @click="editSet(si)" title="詳細編集">✎</button>
+            <button class="icon-btn danger" @click="deleteSet(si)" title="削除">🗑</button>
+            <button class="icon-btn toggle" @click="toggleSet(si)" :title="collapsedSets.has(si) ? '展開' : '折りたたむ'">{{ collapsedSets.has(si) ? '▸' : '▾' }}</button>
           </div>
           <div
             v-for="(plan, pi) in ps.plans"
+            v-show="!collapsedSets.has(si)"
             :key="pi"
             class="pm-course-row"
             data-course
@@ -93,8 +64,8 @@
           >
             <span class="pm-course-handle" @pointerdown.prevent="startCourseDrag($event, si, pi)">⠿</span>
             <input class="pm-course-name pm-name-input" v-model="plan.label" placeholder="コース名" />
-            <button class="pm-edit-btn" @click="editCourse(si, pi)" title="詳細編集">✎</button>
-            <button class="pm-del-btn" @click="deletePlan(si, pi)" title="削除">🗑</button>
+            <button class="icon-btn" @click="editCourse(si, pi)" title="詳細編集">✎</button>
+            <button class="icon-btn danger" @click="deletePlan(si, pi)" title="削除">🗑</button>
           </div>
         </div>
       </div>
@@ -103,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { auth } from '../firebase.js'
 import { saveWithHistory } from '../lib/persistence.js'
 
@@ -113,57 +84,16 @@ const props = defineProps({
   editorInfo:      { type: Object,  default: null },
   currentSelected: { type: Number,  default: null },   // 現在表示中のプランindex | null
   canEdit:         { type: Boolean, default: false },
-  initialMode:     { type: String,  default: 'select' },
 })
 
 const emit = defineEmits(['close', 'edit', 'select'])
 
-const mode = ref(props.initialMode)   // 'select' | 'edit'
-function toggleMode() {
-  mode.value = mode.value === 'select' ? 'edit' : 'select'
-}
-
-// ── コース名の省略表示・タップ展開（選択モードのチップ）───────────
-const expandedCourses  = ref(new Set())  // 展開中のコースキー集合
-const truncatedCourses = ref(new Set())  // 溢れている（=タップ可能な）キー集合
-function setCourseTruncated(key, val) {
-  const has = truncatedCourses.value.has(key)
-  if (val === has) return
-  const s = new Set(truncatedCourses.value)
-  val ? s.add(key) : s.delete(key)
-  truncatedCourses.value = s
-}
-function toggleCourse(key) {
-  const s = new Set(expandedCourses.value)
-  s.has(key) ? s.delete(key) : s.add(key)
-  expandedCourses.value = s
-}
-// 溢れているチップは、カードのドラッグ/選択より先に展開トグルを優先する
-function onCoursePointerDown(e, key) {
-  if (!truncatedCourses.value.has(key) && !expandedCourses.value.has(key)) return
-  e.stopPropagation()
-  e.preventDefault()
-  toggleCourse(key)
-}
-// 溢れ判定ディレクティブ（展開中は測定しない＝折返しで溢れ0になるため）
-const vCourseOverflow = {
-  mounted(el, binding) {
-    const key = binding.value
-    const check = () => {
-      if (expandedCourses.value.has(key)) return
-      setCourseTruncated(key, el.scrollWidth > el.clientWidth + 1)
-    }
-    el._ro = new ResizeObserver(check)
-    el._ro.observe(el)
-    check()
-    // 日本語 Web フォント確定後にも溢れ判定をやり直す
-    document.fonts?.ready?.then(check)
-  },
-  updated(el, binding) {
-    const key = binding.value
-    if (!expandedCourses.value.has(key)) setCourseTruncated(key, el.scrollWidth > el.clientWidth + 1)
-  },
-  unmounted(el) { el._ro?.disconnect() },
+// 各プランのコース一覧を折りたたむ
+const collapsedSets = ref(new Set())
+function toggleSet(si) {
+  const s = new Set(collapsedSets.value)
+  s.has(si) ? s.delete(si) : s.add(si)
+  collapsedSets.value = s
 }
 
 // ── 自動保存 ──────────────────────────────────────
@@ -174,6 +104,12 @@ let initialized   = false
 let dirty         = false
 
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
+
+// 全プランのコース一覧を一括開閉
+const allSetsCollapsed = computed(() => data.length > 0 && data.every((_, si) => collapsedSets.value.has(si)))
+function toggleAllSets() {
+  collapsedSets.value = allSetsCollapsed.value ? new Set() : new Set(data.map((_, si) => si))
+}
 
 watch(data, () => {
   if (!initialized) return
@@ -261,9 +197,6 @@ function editCourse(si, pi) {
 }
 
 // ── ポインタ D&D ─────────────────────────────────
-const draggingIdx = ref(null)
-const dragOverIdx = ref(null)
-
 let _ghost = null
 function _startGhost(el, e) {
   if (_ghost) { _ghost.remove(); _ghost = null }
@@ -285,61 +218,42 @@ function _moveGhost(e, o) {
 }
 function _endGhost() { if (_ghost) { _ghost.remove(); _ghost = null } }
 
-// カード全体でD&D（移動しきい値でクリック/ドラッグを判定）
-function startCardDrag(e, idx) {
-  if (e.pointerType === 'mouse' && e.button !== 0) return
-  const startX = e.clientX, startY = e.clientY
-  let dragging = false, canceled = false, offset = null
-  const cardEl = e.target.closest('[data-idx]')
+// ── セット（プラン）D&D 並び替え ─────────────────────
+const dragSet     = ref(null)  // number | null
+const dragOverSet = ref(null)  // number | null
+
+function startSetDrag(e, si) {
+  dragSet.value     = si
+  dragOverSet.value = si
   e.target.releasePointerCapture?.(e.pointerId)
+  const groupEl = e.target.closest('[data-set-drop]')
+  const offset  = groupEl ? _startGhost(groupEl, e) : null
 
   const handleMove = (ev) => {
-    if (canceled) return
-    if (!dragging) {
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return
-      dragging = true
-      draggingIdx.value = idx
-      dragOverIdx.value = idx
-      offset = cardEl ? _startGhost(cardEl, ev) : null
-    }
-    ev.preventDefault()
     if (offset) _moveGhost(ev, offset)
-    const dragEl = document.querySelector('.pm-card.pm-dragging')
+    const dragEl = document.querySelector('.pm-set-dragging')
     if (dragEl) dragEl.style.visibility = 'hidden'
-    const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-idx]')
+    const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-set-drop]')
     if (dragEl) dragEl.style.visibility = ''
     if (!target) return
-    const newIdx = parseInt(target.dataset.idx)
-    if (!isNaN(newIdx)) dragOverIdx.value = newIdx
-  }
-  const cleanup = () => {
-    document.removeEventListener('pointermove', handleMove)
-    document.removeEventListener('pointerup', handleUp)
-    document.removeEventListener('pointercancel', handleCancel)
+    const idx = parseInt(target.dataset.setDrop)
+    if (!isNaN(idx)) dragOverSet.value = idx
   }
   const handleUp = () => {
-    cleanup()
-    if (canceled) return
-    if (!dragging) { selectSet(idx); return }   // 移動なし=クリック→選択
     _endGhost()
-    const from = draggingIdx.value
-    const to   = dragOverIdx.value
-    draggingIdx.value = null
-    dragOverIdx.value = null
+    document.removeEventListener('pointermove', handleMove)
+    document.removeEventListener('pointerup', handleUp)
+    const from = dragSet.value
+    const to   = dragOverSet.value
+    dragSet.value     = null
+    dragOverSet.value = null
     if (from === null || to === null || from === to) return
     const [item] = data.splice(from, 1)
     data.splice(to, 0, item)
   }
-  const handleCancel = () => {   // スクロール等での中断は誤操作にしない
-    canceled = true
-    _endGhost()
-    draggingIdx.value = null
-    dragOverIdx.value = null
-    cleanup()
-  }
+
   document.addEventListener('pointermove', handleMove)
   document.addEventListener('pointerup', handleUp)
-  document.addEventListener('pointercancel', handleCancel)
 }
 
 // ── コース D&D（並び替え・別プランへ移動）─────────────
@@ -394,9 +308,7 @@ function startCourseDrag(e, si, pi) {
 </script>
 
 <style scoped>
-.pm-overlay {
-  z-index: 300;
-}
+.modal-overlay { z-index: var(--z-modal-front); }
 .pm-panel {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -418,27 +330,6 @@ function startCourseDrag(e, si, pi) {
 }
 .pm-header h2 { margin: 0; font-size: 1.05rem; color: var(--text); font-weight: 500; }
 .pm-header-actions { display: flex; align-items: center; gap: 6px; }
-.pm-status {
-  font-size: 0.78rem;
-  padding: 3px 8px;
-  border-radius: 5px;
-  white-space: nowrap;
-}
-.pm-status.saved    { color: var(--success); }
-.pm-status.saving   { color: var(--text-muted); }
-.pm-status.error    { color: var(--danger); }
-.pm-status.external { color: var(--accent); }
-.pm-editor-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  object-fit: cover;
-}
-.pm-editor-name {
-  font-size: 0.75rem;
-  color: var(--accent);
-}
 .pm-close-btn {
   background: transparent;
   border: none;
@@ -450,14 +341,6 @@ function startCourseDrag(e, si, pi) {
   border-radius: 4px;
 }
 .pm-close-btn:hover { color: var(--text); background: var(--bg-hover); }
-.pm-error {
-  background: var(--danger-soft);
-  border-left: 3px solid var(--danger);
-  color: var(--danger);
-  font-size: 0.78rem;
-  padding: 6px 16px;
-  flex-shrink: 0;
-}
 .pm-body {
   flex: 1;
   overflow-y: auto;
@@ -484,36 +367,23 @@ function startCourseDrag(e, si, pi) {
   transition: all 0.15s;
 }
 .pm-mode-btn:hover { background: var(--bg-selected); border-color: var(--accent); }
-.pm-mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* 選択モード: カード */
-.pm-card {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 10px;
-  cursor: pointer;
-  user-select: none;
-  touch-action: pan-y;
-  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
-}
-.pm-card:hover { background: var(--bg-hover); }
-.pm-card.active { border-color: var(--accent); background: var(--bg-selected); }
-.pm-card.pm-dragging { opacity: 0.3; }
-.pm-card.pm-drag-over {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.pm-card-none {
-  justify-content: center;
+/* プラン選択・並び替え */
+.pm-set-none {
+  text-align: center;
   font-size: 0.82rem;
   color: var(--text-muted);
   font-style: italic;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
 }
-.pm-card-handle {
+.pm-set-none:hover { background: var(--bg-hover); }
+.pm-set-none.active { border-color: var(--accent); background: var(--bg-selected); color: var(--accent); }
+.pm-set-handle {
   cursor: grab;
   color: var(--text-faint);
   font-size: 1rem;
@@ -522,55 +392,26 @@ function startCourseDrag(e, si, pi) {
   user-select: none;
   touch-action: none;
   line-height: 1;
-  align-self: center;
 }
-.pm-card-handle:active { cursor: grabbing; }
-.pm-card-body { flex: 1; min-width: 0; }
-.pm-card-name {
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pm-card-courses {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-.pm-card-course {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-  vertical-align: bottom;
-  box-sizing: border-box;
-}
-/* 溢れている（タップで全文表示できる）チップだけ手がかりを表示 */
-.pm-card-course.truncated {
-  cursor: pointer;
+.pm-set-handle:active { cursor: grabbing; }
+.pm-select-btn {
+  background: none;
+  border: none;
   color: var(--accent);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.pm-set-group.pm-set-dragging { opacity: 0.3; }
+.pm-set-group.pm-set-reorder-over {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pm-set-group.active {
   border-color: var(--accent);
-}
-.pm-card-course.expanded {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-word;
-}
-.pm-card-empty {
-  font-size: 0.7rem;
-  color: var(--text-faint);
-  font-style: italic;
+  background: var(--bg-selected);
 }
 
 /* セット編集モード */
@@ -653,28 +494,6 @@ function startCourseDrag(e, si, pi) {
   border-color: var(--accent);
   background: var(--bg-input, var(--bg));
 }
-.pm-edit-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: 4px;
-  padding: 4px 7px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.pm-edit-btn:hover { background: var(--bg-selected); }
-.pm-del-btn {
-  background: none;
-  border: 1px solid var(--danger-border);
-  color: var(--danger);
-  border-radius: 4px;
-  padding: 4px 7px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.pm-del-btn:hover { background: var(--danger-soft); }
 .pm-add-btn {
   background: none;
   border: 1px dashed var(--border);
