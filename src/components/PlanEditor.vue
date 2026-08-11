@@ -123,8 +123,7 @@
                         <span class="pe-item-toggle" @click.stop="toggleItem(pi, ci)">{{ isItemOpen(pi, ci) ? '▾' : '▸' }}</span>
                         <span class="pe-badge city">都市</span>
                         <div class="pe-city-name-wrap">
-                          <input v-model="item.name" placeholder="都市名" class="pe-city-name-input"
-                            @input="onCityNameInput(`${pi}-${ci}`, item)" />
+                          <input v-model="item.name" placeholder="都市名" class="pe-city-name-input" />
                           <div class="pe-city-country-row">
                             <div class="pe-country-wrap">
                               <input
@@ -279,9 +278,13 @@ import { saveWithHistory } from '../lib/persistence.js'
 import { isCity } from '../utils/plan.js'
 import { TRANSPORT_MODES, TICKET_TYPES, DEFAULT_MODE, DEFAULT_TICKET } from '../utils/transport.js'
 import { PLACEHOLDER } from '../utils/labels.js'
+import { useGeocoding } from '../composables/useGeocoding.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
+
+// 地図描画と共有する都市キャッシュ（localStorage + Firestore geodata）
+const { cityData, geocodeCityNames } = useGeocoding()
 
 const props = defineProps({
   initialData:    { type: Array,  required: true },
@@ -684,28 +687,10 @@ function deleteHotel(cityItem, hi) {
 }
 
 // ── 国オートコンプリート ──────────────────────────
-const NOMINATIM_FIX = {
-  'Türkiye': 'Turkey',
-  'United States': 'United States of America',
-  'Republic of Korea': 'South Korea',
-  "Democratic People's Republic of Korea": 'North Korea',
-  'Czech Republic': 'Czechia',
-  'Russian Federation': 'Russia',
-  'Islamic Republic of Iran': 'Iran',
-  'Syrian Arab Republic': 'Syria',
-  "Lao People's Democratic Republic": 'Laos',
-  'Viet Nam': 'Vietnam',
-  'United Republic of Tanzania': 'Tanzania',
-  'Republic of Moldova': 'Moldova',
-  'Republic of North Macedonia': 'Macedonia',
-  'Collectivity of Saint Martin': 'France',
-  'French Polynesia': 'French Polynesia',
-  'Brasil': 'Brazil',
-}
 
 // 都市名に対応する候補国: key→[{en,ja}] | 'loading' | null
 const cityCountryCandidates = reactive({})
-const _cityNameTimers = {}
+const _lastQueriedName = {}   // key→ 直近に問い合わせた都市名（同名の再取得を防ぐ）
 
 // 候補が配列（実データ）として存在するか。'loading' 文字列を length で誤判定しないためのガード
 function hasCands(key) {
@@ -713,40 +698,34 @@ function hasCands(key) {
   return Array.isArray(c) && c.length > 0
 }
 
-function onCityNameInput(key, item) {
-  clearTimeout(_cityNameTimers[key])
-  cityCountryCandidates[key] = null
-  const name = item.name?.trim()
-  if (!name) return
-  cityCountryCandidates[key] = 'loading'
-  _cityNameTimers[key] = setTimeout(async () => {
-    try {
-      const url = 'https://nominatim.openstreetmap.org/search'
-        + `?q=${encodeURIComponent(name)}&format=json&limit=5&addressdetails=1`
-      const res = await fetch(url, { headers: { 'User-Agent': 'trip-map/1.0', 'Accept-Language': 'en' } })
-      const json = await res.json()
-      const seen = new Set()
-      const candidates = []
-      for (const r of json) {
-        const raw = r.address?.country ?? ''
-        const en = NOMINATIM_FIX[raw] ?? raw
-        if (!en || seen.has(en)) continue
-        seen.add(en)
-        candidates.push({ en, ja: countryNamesJa[en] || en })
-      }
-      cityCountryCandidates[key] = candidates
-      // 候補が1件のみなら自動選択して国フィールドを開かない
-      if (candidates.length === 1 && !item.country) {
-        item.country = candidates[0].en
-        if (countryACState[key]) {
-          countryACState[key].text = candidates[0].ja
-          countryACState[key].suggestions = []
-        }
-      }
-    } catch {
-      cityCountryCandidates[key] = null
+// 取得済みの英語国名を候補として反映（未選択なら自動選択）
+function applyCountryCandidate(key, item, en) {
+  const cand = { en, ja: countryNamesJa[en] || en }
+  cityCountryCandidates[key] = [cand]
+  if (!item.country) {
+    item.country = en
+    if (countryACState[key]) {
+      countryACState[key].text = cand.ja
+      countryACState[key].suggestions = []
     }
-  }, 800)
+  }
+}
+
+// 国フィールドを開いたときに、都市キャッシュ優先で候補国を取得する
+async function fetchCityCountries(key, item) {
+  const name = item.name?.trim()
+  if (!name) { cityCountryCandidates[key] = null; return }
+  // 地図描画で取得済みのキャッシュがあれば即反映（Nominatim を叩かない）
+  const cached = cityData[name]?.country
+  if (cached) { applyCountryCandidate(key, item, cached); return }
+  // 同じ都市名で取得済みなら再取得しない
+  if (_lastQueriedName[key] === name && cityCountryCandidates[key] && cityCountryCandidates[key] !== 'loading') return
+  _lastQueriedName[key] = name
+  cityCountryCandidates[key] = 'loading'
+  await geocodeCityNames([name])   // 座標・国名を取得し localStorage/Firestore に共有キャッシュ
+  const country = cityData[name]?.country
+  if (country) applyCountryCandidate(key, item, country)
+  else { cityCountryCandidates[key] = []; _lastQueriedName[key] = null }
 }
 
 const countryACState = reactive({})
@@ -781,9 +760,9 @@ function onCountryFocus(key, item) {
       .filter(c => c.ja.toLowerCase().includes(q) || c.en.toLowerCase().includes(q))
       .slice(0, 8)
   }
-  // 候補がなくて都市名があれば即時取得
-  if (!cityCountryCandidates[key] && item.name?.trim()) {
-    onCityNameInput(key, item)
+  // 国フィールドを開いたら、現在の都市名で候補を取得する
+  if (item.name?.trim()) {
+    fetchCityCountries(key, item)
   }
 }
 

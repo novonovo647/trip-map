@@ -88,3 +88,22 @@ export const MISSING_EN_MAP = {
   'ジプラルタル': 'Gibraltar',
   'スコットランド': 'Scotland',
 }
+
+// Nominatim が返す国名 → アプリ内の英語キーへの正規化（表記ゆれ吸収）
+export const NOMINATIM_COUNTRY_FIX = {
+  'Türkiye': 'Turkey',
+  'United States': 'United States of America',
+  'Republic of Korea': 'South Korea',
+  "Democratic People's Republic of Korea": 'North Korea',
+  'Czech Republic': 'Czechia',
+  'Russian Federation': 'Russia',
+  'Islamic Republic of Iran': 'Iran',
+  'Syrian Arab Republic': 'Syria',
+  "Lao People's Democratic Republic": 'Laos',
+  'Viet Nam': 'Vietnam',
+  'United Republic of Tanzania': 'Tanzania',
+  'Republic of Moldova': 'Moldova',
+  'Republic of North Macedonia': 'Macedonia',
+  'Collectivity of Saint Martin': 'France',
+  'Brasil': 'Brazil',
+}

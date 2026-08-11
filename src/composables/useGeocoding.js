@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { isTransport } from '../utils/plan.js'
+import { NOMINATIM_COUNTRY_FIX } from '../utils/countries.js'
 
 const CACHE_KEY = 'trip-geo-cache'
 
@@ -17,7 +18,7 @@ export function useGeocoding() {
   const _localCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
   const cityData = reactive({ ..._localCache })
 
-  // Nominatim で 1 都市の座標を取得
+  // Nominatim で 1 都市の座標と国名を取得
   async function geocodeCity(name) {
     try {
       const url = 'https://nominatim.openstreetmap.org/search'
@@ -26,7 +27,9 @@ export function useGeocoding() {
       const data = await res.json()
       if (!data.length) return null
       const item = data[0]
-      return { coords: [parseFloat(item.lon), parseFloat(item.lat)] }
+      const rawCountry = item.address?.country ?? ''
+      const country = NOMINATIM_COUNTRY_FIX[rawCountry] ?? rawCountry
+      return { coords: [parseFloat(item.lon), parseFloat(item.lat)], country: country || undefined }
     } catch {
       return null
     }
