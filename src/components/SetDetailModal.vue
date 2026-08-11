@@ -135,7 +135,7 @@ const totalNights = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(82vh - 60px);
+  min-height: 0;
 }
 
 .plan-detail {

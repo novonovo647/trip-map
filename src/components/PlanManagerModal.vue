@@ -45,6 +45,7 @@
             <span class="pm-set-handle" @pointerdown.prevent="startSetDrag($event, si)">⠿</span>
             <button class="pm-select-btn" @click="selectSet(si)" :title="currentSelected === si ? '表示中' : '地図に表示'">{{ currentSelected === si ? '★' : '☆' }}</button>
             <input class="pm-set-name pm-name-input" v-model="ps.setName" placeholder="プラン名" />
+            <button class="icon-btn" @click="openDetail(si)" title="プラン詳細">🔍</button>
             <button class="icon-btn" @click="editSet(si)" title="詳細編集">✎</button>
             <button class="icon-btn danger" @click="deleteSet(si)" title="削除">🗑</button>
             <button class="icon-btn toggle" @click="toggleSet(si)" :title="collapsedSets.has(si) ? '展開' : '折りたたむ'">{{ collapsedSets.has(si) ? '▸' : '▾' }}</button>
@@ -85,7 +86,7 @@ const props = defineProps({
   canEdit:         { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'edit', 'select'])
+const emit = defineEmits(['close', 'edit', 'select', 'detail'])
 
 // 各プランのコース一覧を折りたたむ
 const collapsedSets = ref(new Set())
@@ -133,6 +134,11 @@ function selectSet(si) {
 function editSet(si) {
   flush()
   emit('edit', { si })
+}
+
+function openDetail(si) {
+  flush()
+  emit('detail', si)
 }
 
 function editCourse(si, pi) {
@@ -258,7 +264,7 @@ function startCourseDrag(e, si, pi) {
   border: 1px solid var(--border);
   border-radius: 12px;
   width: var(--modal-width);
-  max-height: min(80vh, 560px);
+  max-height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;

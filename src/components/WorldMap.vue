@@ -174,6 +174,7 @@
         @close="showPlanManager = false"
         @select="onSelectSet"
         @edit="onPlanManagerEdit"
+        @detail="onPlanManagerDetail"
       />
     </Teleport>
 
@@ -184,7 +185,7 @@
       :plans="setDetailPlans"
       :getCountryJa="getJaName"
       :canEdit="!!currentUser"
-      @close="modalSetIndex = null"
+      @close="onDetailClose"
       @edit="onDetailEdit(modalSetIndex)"
     />
 
@@ -866,6 +867,7 @@ const planEditorSinglePlan = ref(null) // null | { si, pi } 単一コース表�
 const showPlanManager    = ref(false)
 const returnToManager    = ref(false)    // エディタを閉じたら管理モーダルへ戻る
 const returnToDetailSet  = ref(null)     // エディタを閉じたら詳細モーダルへ戻る（setIndex）
+const returnToManagerFromDetail = ref(false) // 詳細を閉じたら管理モーダルへ戻る
 
 function openPlanEditor(arg = null) {
   planExternalData.value  = null
@@ -919,6 +921,22 @@ function onPlanManagerEdit(payload) {
   returnToManager.value = true
   returnToDetailSet.value = null
   openPlanEditor(payload)
+}
+
+// プラン管理モーダルからプラン詳細を開く
+function onPlanManagerDetail(si) {
+  showPlanManager.value = false
+  returnToManagerFromDetail.value = true
+  modalSetIndex.value = si
+}
+
+// 詳細モーダルを閉じる（管理から開いた場合は管理へ戻る）
+function onDetailClose() {
+  modalSetIndex.value = null
+  if (returnToManagerFromDetail.value) {
+    returnToManagerFromDetail.value = false
+    showPlanManager.value = true
+  }
 }
 
 // ── Firestore リアルタイムリスナー ──────────────────────────

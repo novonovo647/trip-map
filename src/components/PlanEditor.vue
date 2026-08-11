@@ -725,7 +725,7 @@ function selectCountry(key, item, s) {
   border: 1px solid var(--border);
   border-radius: 12px;
   width: var(--modal-width);
-  height: var(--modal-height);
+  max-height: var(--modal-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;
