@@ -281,7 +281,7 @@ import countryNamesJa from '../assets/country_names_ja.json'
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
 
 // 地図描画と共有する都市キャッシュ（localStorage + Firestore geodata）
-const { cityData, geocodeCityNames } = useGeocoding()
+const { cityData, ensureCityCountry } = useGeocoding()
 
 const props = defineProps({
   initialData:    { type: Array,  required: true },
@@ -629,14 +629,20 @@ function hasCands(key) {
   return Array.isArray(c) && c.length > 0
 }
 
-// 取得済みの英語国名を候補として反映（未選択なら自動選択）
-function applyCountryCandidate(key, item, en) {
-  const cand = { en, ja: countryNamesJa[en] || en }
-  cityCountryCandidates[key] = [cand]
+// 取得済みの国名（英語キーまたは日本語名）を候補として反映（未選択なら自動選択）
+function applyCountryCandidate(key, item, country) {
+  let en = country
+  let ja = countryNamesJa[country]
+  if (!ja) {
+    // country が日本語名の場合は逆引きして英語キーに揃える
+    const hit = COUNTRY_LIST.find(c => c.ja === country)
+    if (hit) { en = hit.en; ja = hit.ja } else { ja = country }
+  }
+  cityCountryCandidates[key] = [{ en, ja }]
   if (!item.country) {
     item.country = en
     if (countryACState[key]) {
-      countryACState[key].text = cand.ja
+      countryACState[key].text = ja
       countryACState[key].suggestions = []
     }
   }
@@ -646,15 +652,14 @@ function applyCountryCandidate(key, item, en) {
 async function fetchCityCountries(key, item) {
   const name = item.name?.trim()
   if (!name) { cityCountryCandidates[key] = null; return }
-  // 地図描画で取得済みのキャッシュがあれば即反映（Nominatim を叩かない）
+  // 地図描画で取得済みのキャッシュに国名があれば即反映（Nominatim を叩かない）
   const cached = cityData[name]?.country
   if (cached) { applyCountryCandidate(key, item, cached); return }
   // 同じ都市名で取得済みなら再取得しない
   if (_lastQueriedName[key] === name && cityCountryCandidates[key] && cityCountryCandidates[key] !== 'loading') return
   _lastQueriedName[key] = name
   cityCountryCandidates[key] = 'loading'
-  await geocodeCityNames([name])   // 座標・国名を取得し localStorage/Firestore に共有キャッシュ
-  const country = cityData[name]?.country
+  const country = await ensureCityCountry(name)   // 座標のみキャッシュ済みでも国名を補完
   if (country) applyCountryCandidate(key, item, country)
   else { cityCountryCandidates[key] = []; _lastQueriedName[key] = null }
 }
