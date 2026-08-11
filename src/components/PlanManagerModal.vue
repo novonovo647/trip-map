@@ -74,9 +74,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
-import { auth } from '../firebase.js'
-import { saveWithHistory } from '../lib/persistence.js'
+import { ref, reactive, computed } from 'vue'
+import { usePlanPersistence } from '../composables/usePlanPersistence.js'
 
 const props = defineProps({
   initialData:     { type: Array,   required: true },
@@ -97,12 +96,6 @@ function toggleSet(si) {
 }
 
 // ── 自動保存 ──────────────────────────────────────
-const saveStatus = ref('idle')
-const saveError  = ref('')
-let autoSaveTimer = null
-let initialized   = false
-let dirty         = false
-
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
 
 // 全プランのコース一覧を一括開閉
@@ -111,55 +104,11 @@ function toggleAllSets() {
   collapsedSets.value = allSetsCollapsed.value ? new Set() : new Set(data.map((_, si) => si))
 }
 
-watch(data, () => {
-  if (!initialized) return
-  dirty = true
-  saveStatus.value = 'saving'
-  clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(doSave, 1500)
-}, { deep: true })
-
-// 他ユーザーの更新をモーダル内に反映
-watch(() => props.externalData, (newVal) => {
-  if (!newVal) return
-  clearTimeout(autoSaveTimer)
-  autoSaveTimer = null
-  dirty = false
-  data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
-  saveStatus.value = 'external'
-  setTimeout(() => { if (saveStatus.value === 'external') saveStatus.value = 'idle' }, 3000)
+const { saveStatus, saveError, handleClose, flush } = usePlanPersistence(data, {
+  getExternalData: () => props.externalData,
+  externalRevertStatus: 'idle',
+  emitClose: () => emit('close'),
 })
-
-setTimeout(() => { initialized = true }, 0)
-onBeforeUnmount(() => clearTimeout(autoSaveTimer))
-
-async function doSave(close = false) {
-  saveStatus.value = 'saving'
-  saveError.value  = ''
-  try {
-    await saveWithHistory('plans', {
-      sets:        JSON.parse(JSON.stringify(data)),
-      savedBy:     auth.currentUser?.uid          ?? '',
-      editorName:  auth.currentUser?.displayName  ?? '',
-      editorPhoto: auth.currentUser?.photoURL     ?? '',
-    })
-    dirty = false
-    saveStatus.value = 'saved'
-    if (close) emit('close')
-  } catch (e) {
-    saveStatus.value = 'error'
-    saveError.value  = e.message
-  }
-}
-
-function handleClose() {
-  clearTimeout(autoSaveTimer)
-  if (dirty) {
-    doSave(true)
-  } else {
-    emit('close')
-  }
-}
 
 function addSet() {
   data.push({ setName: '新しいプラン', plans: [] })
@@ -174,11 +123,6 @@ function deletePlan(si, pi) {
   const plan = data[si].plans[pi]
   if (!confirm(`「${plan.label || '（名称なし）'}」を削除しますか？`)) return
   data[si].plans.splice(pi, 1)
-}
-
-// 未保存の変更があれば即時保存を発火（画面遷移前）
-function flush() {
-  if (dirty) { clearTimeout(autoSaveTimer); doSave(false) }
 }
 
 function selectSet(si) {

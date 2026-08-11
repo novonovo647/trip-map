@@ -272,13 +272,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
-import { auth } from '../firebase.js'
-import { saveWithHistory } from '../lib/persistence.js'
+import { ref, reactive, computed } from 'vue'
 import { isCity } from '../utils/plan.js'
 import { TRANSPORT_MODES, TICKET_TYPES, DEFAULT_MODE, DEFAULT_TICKET } from '../utils/transport.js'
 import { PLACEHOLDER } from '../utils/labels.js'
 import { useGeocoding } from '../composables/useGeocoding.js'
+import { usePlanPersistence } from '../composables/usePlanPersistence.js'
 import countryNamesJa from '../assets/country_names_ja.json'
 
 const COUNTRY_LIST = Object.entries(countryNamesJa).map(([en, ja]) => ({ en, ja }))
@@ -296,33 +295,17 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-// ── 自動保存 ──────────────────────────────────────
-const saveStatus = ref('idle')   // 'idle' | 'saved' | 'saving' | 'error' | 'external'
-const saveError  = ref('')
-let   autoSaveTimer        = null
-let   initialized          = false
-let   isApplyingExternal   = false
-let   dirty                = false
-
 // 元データを破壊しないようディープコピーで作業
 const data = reactive(JSON.parse(JSON.stringify(props.initialData)))
 
-watch(data, () => {
-  if (!initialized || isApplyingExternal) return
-  dirty = true
-  saveStatus.value = 'saving'
-  clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(() => doSave(false), 1500)
-}, { deep: true })
+const activeSet = ref(
+  props.singlePlan ? props.singlePlan.si
+  : props.singleSetIndex !== null ? props.singleSetIndex
+  : (data.length > 0 ? 0 : null)
+)
 
-// 他ユーザーの更新をエディタに反映
-watch(() => props.externalData, (newVal) => {
-  if (!newVal) return
-  isApplyingExternal = true
-  clearTimeout(autoSaveTimer)
-  autoSaveTimer = null
-  data.splice(0, data.length, ...JSON.parse(JSON.stringify(newVal)))
-  // activeSet の更新
+// 外部更新の反映後に activeSet を追従（対象が消えたら閉じる）
+function applyExternalActiveSet() {
   if (props.singlePlan) {
     if (props.singlePlan.si < data.length && props.singlePlan.pi < (data[props.singlePlan.si]?.plans.length ?? 0)) {
       activeSet.value = props.singlePlan.si
@@ -338,15 +321,15 @@ watch(() => props.externalData, (newVal) => {
   } else if (activeSet.value !== null && activeSet.value >= data.length) {
     activeSet.value = data.length > 0 ? 0 : null
   }
-  setTimeout(() => { isApplyingExternal = false }, 0)
-  saveStatus.value = 'external'
-  setTimeout(() => { if (saveStatus.value === 'external') saveStatus.value = 'saved' }, 3000)
+}
+
+// ── 自動保存 ──────────────────────────────────────
+const { saveStatus, saveError, handleClose } = usePlanPersistence(data, {
+  getExternalData: () => props.externalData,
+  serialize: buildCleanedData,
+  onExternalApply: applyExternalActiveSet,
+  emitClose: () => emit('close'),
 })
-
-// watch登録後に初期化（初期値で自動保存しない）
-setTimeout(() => { initialized = true }, 0)
-
-onBeforeUnmount(() => clearTimeout(autoSaveTimer))
 
 function buildCleanedData() {
   const cleaned = JSON.parse(JSON.stringify(data))
@@ -388,39 +371,6 @@ function buildCleanedData() {
   return cleaned
 }
 
-async function doSave(shouldClose) {
-  saveStatus.value = 'saving'
-  saveError.value  = ''
-  try {
-    await saveWithHistory('plans', {
-      sets:        buildCleanedData(),
-      savedBy:     auth.currentUser?.uid          ?? '',
-      editorName:  auth.currentUser?.displayName  ?? '',
-      editorPhoto: auth.currentUser?.photoURL     ?? '',
-    })
-    dirty = false
-    saveStatus.value = 'saved'
-    if (shouldClose) emit('close')
-  } catch (e) {
-    saveStatus.value = 'error'
-    saveError.value  = e.message
-  }
-}
-
-function handleClose() {
-  clearTimeout(autoSaveTimer)
-  if (dirty) {
-    doSave(true)
-  } else {
-    emit('close')
-  }
-}
-
-const activeSet = ref(
-  props.singlePlan ? props.singlePlan.si
-  : props.singleSetIndex !== null ? props.singleSetIndex
-  : (data.length > 0 ? 0 : null)
-)
 const openPlan  = ref({})   // { [pi]: boolean }
 const openSpots = ref({})   // { [`${pi}-${ci}`]: boolean }
 const openHotels = ref({})  // { [`${pi}-${ci}`]: boolean }
