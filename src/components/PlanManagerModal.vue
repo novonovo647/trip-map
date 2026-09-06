@@ -13,6 +13,13 @@
             <img v-if="editorInfo.photo" :src="editorInfo.photo" class="editor-avatar" :title="editorInfo.name" referrerpolicy="no-referrer" />
             <span v-else class="editor-name">{{ editorInfo.name }}</span>
           </template>
+          <div class="pm-filter-seg">
+            <button
+              v-for="f in PLAN_FILTER_ORDER" :key="f"
+              class="pm-filter-btn" :class="{ active: planFilter === f }"
+              @click="planFilter = f"
+            >{{ PLAN_FILTER_LABELS[f] }}</button>
+          </div>
           <button v-if="data.length" class="pm-mode-btn" @click="toggleAllSets">{{ allSetsCollapsed ? '⊞ すべて展開' : '⊟ すべて折りたたむ' }}</button>
           <button v-if="canEdit" class="pm-mode-btn" @click="addSet">＋ プラン追加</button>
           <button class="pm-close-btn" @click="handleClose" title="閉じる">✕</button>
@@ -31,6 +38,7 @@
 
         <div
           v-for="(ps, si) in data"
+          v-show="matchesFilter(ps)"
           :key="si"
           class="pm-set-group"
           :class="{
@@ -46,6 +54,9 @@
             <button class="pm-select-btn" @click="selectSet(si)" :title="currentSelected === si ? '表示中' : '地図に表示'">{{ currentSelected === si ? '★' : '☆' }}</button>
             <input class="pm-set-name pm-name-input" v-model="ps.setName" placeholder="プラン名" />
             <span v-if="setNights(ps) > 0" class="pm-nights">{{ setNights(ps) }}泊</span>
+            <label class="pm-traveled" title="旅行済み">
+              <input type="checkbox" v-model="ps[TRAVELED_KEY]" /> 済
+            </label>
             <button class="icon-btn" @click="openDetail(si)" title="プラン詳細">🔍</button>
             <button class="icon-btn" @click="editSet(si)" title="詳細編集">✎</button>
             <button class="icon-btn danger" @click="deleteSet(si)" title="削除">🗑</button>
@@ -80,7 +91,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { usePlanPersistence } from '../composables/usePlanPersistence.js'
-import { sumNights, COURSE_COPY_SUFFIX } from '../utils/plan.js'
+import { sumNights, COURSE_COPY_SUFFIX, TRAVELED_KEY, PLAN_FILTERS, PLAN_FILTER_ORDER, PLAN_FILTER_LABELS, DEFAULT_PLAN_FILTER, isTraveled } from '../utils/plan.js'
 
 const props = defineProps({
   initialData:     { type: Array,   required: true },
@@ -91,6 +102,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'edit', 'select', 'detail'])
+
+// 表示フィルタ（未旅行のみ / 旅行済みのみ / すべて）
+const planFilter = ref(DEFAULT_PLAN_FILTER)
+function matchesFilter(ps) {
+  if (planFilter.value === PLAN_FILTERS.ALL) return true
+  return planFilter.value === PLAN_FILTERS.VISITED ? isTraveled(ps) : !isTraveled(ps)
+}
 
 // 各プランのコース一覧を折りたたむ
 const collapsedSets = ref(new Set())
@@ -334,6 +352,43 @@ function startCourseDrag(e, si, pi) {
   transition: all 0.15s;
 }
 .pm-mode-btn:hover { background: var(--bg-selected); border-color: var(--accent); }
+
+/* 表示フィルタ（セグメント風の3ボタン） */
+.pm-filter-seg { display: inline-flex; }
+.pm-filter-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-right-width: 0;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.pm-filter-btn:first-child { border-radius: 5px 0 0 5px; }
+.pm-filter-btn:last-child { border-radius: 0 5px 5px 0; border-right-width: 1px; }
+.pm-filter-btn:hover { background: var(--bg-hover); }
+.pm-filter-btn.active {
+  background: var(--bg-selected);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pm-filter-btn.active + .pm-filter-btn { border-left-color: var(--accent); }
+
+/* 旅行済みチェックボックス */
+.pm-traveled {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.pm-traveled input { cursor: pointer; margin: 0; }
 
 /* プラン選択・並び替え */
 .pm-set-none {

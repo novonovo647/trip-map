@@ -17,3 +17,21 @@ export function sumNights(plan) {
 
 // コース複製時にコース名へ付与する接尾辞。
 export const COURSE_COPY_SUFFIX = '（コピー）'
+
+// プランの旅行済みフラグのキー。
+export const TRAVELED_KEY = 'traveled'
+
+// プラン管理の表示フィルタ。
+export const PLAN_FILTERS = { UNVISITED: 'unvisited', VISITED: 'visited', ALL: 'all' }
+export const DEFAULT_PLAN_FILTER = PLAN_FILTERS.UNVISITED
+export const PLAN_FILTER_ORDER = [PLAN_FILTERS.UNVISITED, PLAN_FILTERS.VISITED, PLAN_FILTERS.ALL]
+export const PLAN_FILTER_LABELS = {
+  [PLAN_FILTERS.UNVISITED]: '未旅行のみ',
+  [PLAN_FILTERS.VISITED]:   '旅行済みのみ',
+  [PLAN_FILTERS.ALL]:       'すべて',
+}
+
+// プランが旅行済みか（undefined は未旅行として扱う）。
+export function isTraveled(set) {
+  return !!set?.[TRAVELED_KEY]
+}
